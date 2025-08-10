@@ -1,0 +1,11 @@
+fastapi
+uvicorn[standard]
+yt-dlp
+requests
+beautifulsoup4
+tenacity
+python-multipart
+lxml
+pydantic
+aiofiles
+slowapi
