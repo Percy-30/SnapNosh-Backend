@@ -1,11 +1,8 @@
-# ====================================================================
-# Dockerfile - SnapTube Backend (with Threads support)
-# ====================================================================
 FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install system dependencies including Playwright requirements
+# Instalar dependencias del sistema
 RUN apt-get update && apt-get install -y \
     ffmpeg \
     wget \
@@ -27,34 +24,33 @@ RUN apt-get update && apt-get install -y \
     libwayland-client0 \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Playwright browsers
-RUN playwright install --with-deps chromium
-#RUN pip install playwright && \
-#    playwright install chromium && \
-#    playwright install-deps
-#
-# Copy requirements first for better caching
+# Copiar requirements antes para aprovechar cache
 COPY requirements.txt .
+
+# Instalar paquetes python, incluido playwright
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
+# Ahora sí, instalar navegadores de playwright
+RUN playwright install --with-deps chromium
+
+# Copiar código fuente
 COPY app/ ./app/
 
-# Create necessary directories
+# Crear directorios necesarios
 RUN mkdir -p /tmp/snaptube cookies
 
-# Set environment variables
+# Variables de entorno
 ENV PYTHONPATH=/app
 ENV HOST=0.0.0.0
 ENV PORT=8000
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 
-# Expose port
+# Exponer puerto
 EXPOSE 8000
 
-# Health check
+# Healthcheck
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8000/api/v1/health || exit 1
 
-# Run application
+# Ejecutar la app con Gunicorn y Uvicorn worker
 CMD ["gunicorn", "app.main:app", "-w", "4", "-k", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8000"]
