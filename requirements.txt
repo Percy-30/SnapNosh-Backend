@@ -2,6 +2,7 @@
 fastapi
 uvicorn[standard]
 gunicorn
+aiohttp
 
 # Video processing
 yt-dlp
