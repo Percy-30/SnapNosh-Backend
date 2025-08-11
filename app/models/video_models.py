@@ -64,3 +64,67 @@ class SuccessResponse(BaseModel):
     status: str = "success"
     data: Any
     message: Optional[str] = None
+    
+
+# --- Tus modelos ya existentes (VideoInfo, etc.) ---
+
+class VideoFormat(BaseModel):
+    format_id: str
+    ext: str
+    vcodec: str
+    acodec: str
+    filesize: Optional[int] = None
+    resolution: Optional[str] = None
+    fps: Optional[int] = None
+    quality: Optional[int] = None
+
+class VideoThumbnail(BaseModel):
+    url: HttpUrl
+    width: Optional[int]
+    height: Optional[int]
+
+# ---------------- Modelo Snaptube mejorado ----------------
+
+class DownloadOption(BaseModel):
+    type: str                 # "video" o "audio"
+    quality: str              # Ej: "720p 30fps" o "High Quality (192K)"
+    format: str               # Ej: "mp4", "mp3"
+    size_estimate: str        # Ej: "~45MB"
+    recommended: bool = False
+    format_id: Optional[str] = None
+    actual_filesize: Optional[int] = None
+
+class SnaptubeVideoInfo(BaseModel):
+    id: Optional[str]
+    title: str
+    description: Optional[str]
+    duration: Optional[int]
+    duration_string: Optional[str]
+    view_count: Optional[int]
+    uploader: str
+    upload_date: Optional[str]
+    thumbnail: Optional[str]
+    thumbnails: List[Dict[str, Any]] = []
+    webpage_url: Optional[str]
+    has_formats: bool
+
+class SearchResult(BaseModel):
+    id: Optional[str]
+    title: str
+    uploader: str
+    duration_string: Optional[str]
+    view_count: Optional[int]
+    thumbnail: Optional[str]
+    url: Optional[str]
+    upload_date: Optional[str]
+
+class TrendingVideo(BaseModel):
+    id: Optional[str]
+    title: str
+    uploader: str
+    duration_string: Optional[str]
+    view_count: Optional[int]
+    thumbnail: Optional[str]
+    url: Optional[str]
+
+# Puedes agregar más modelos según necesites para la API

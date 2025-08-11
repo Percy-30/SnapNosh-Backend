@@ -68,3 +68,61 @@ class TikTokValidator:
             if match:
                 return match.group(1)
         return None
+    
+class TwitterValidator:
+    """Twitter specific validators"""
+
+    @staticmethod
+    def extract_tweet_id(url: str) -> Optional[str]:
+        """Extrae el ID de un tweet/video de Twitter"""
+        # Ejemplo simple de regex para el ID de tweet
+        pattern = r'twitter\.com/.*/status/(\d+)'
+        match = re.search(pattern, url)
+        if match:
+            return match.group(1)
+        return None
+
+class InstagramValidator:
+    """Instagram specific validators"""
+    
+    @staticmethod
+    def extract_post_id(url: str) -> Optional[str]:
+        """
+        Extract Instagram post shortcode or ID.
+        Instagram URLs have this pattern:
+        https://www.instagram.com/p/shortcode/
+        https://www.instagram.com/reel/shortcode/
+        https://www.instagram.com/tv/shortcode/
+        """
+        patterns = [
+            r'instagram\.com/(?:p|reel|tv)/([A-Za-z0-9_-]+)',
+            r'instagram\.com/stories/[^/]+/(\d+)'  # stories with numeric ID
+        ]
+        
+        for pattern in patterns:
+            match = re.search(pattern, url)
+            if match:
+                return match.group(1)
+        return None
+
+class ThreadsValidator:
+    """Threads specific validators"""
+    
+    @staticmethod
+    def extract_post_id(url: str) -> Optional[str]:
+        """
+        Extract Threads post ID or shortcode.
+        Threads URLs example:
+        https://www.threads.net/@username/post/POST_ID
+        """
+        patterns = [
+            r'threads\.net/@[^/]+/post/([A-Za-z0-9_-]+)',
+            r"^(https?:\/\/)?(www\.)?(threads\.net|threads\.com)\/@[\w\.-]+\/post\/[A-Za-z0-9_-]+",
+            r'threads\.net/p/([A-Za-z0-9_-]+)',  # por si hay otra forma
+        ]
+        
+        for pattern in patterns:
+            match = re.search(pattern, url)
+            if match:
+                return match.group(1)
+        return None

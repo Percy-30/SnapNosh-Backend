@@ -1,11 +1,27 @@
+# Core dependencies
 fastapi
 uvicorn[standard]
+gunicorn
+
+# Video processing
 yt-dlp
+ffmpeg-python
+
+# Web scraping
+playwright
 requests
 beautifulsoup4
+lxml
+
+# Utilities
 tenacity
 python-multipart
-lxml
 pydantic
 aiofiles
+
+# Rate limiting
 slowapi
+redis
+
+# Development (optional)
+python-dotenv

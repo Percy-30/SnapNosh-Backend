@@ -11,16 +11,34 @@ from fastapi.responses import JSONResponse
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
+from app.limits import limiter
+
+# --- CORRECCIÓN PARA EL ERROR ModuleNotFoundError ---
+# Se añade el directorio raíz del proyecto a la ruta de módulos de Python.
+# Esto asegura que el reloader pueda encontrar el módulo 'app'.
+import os
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# ----------------------------------------------------
 
 from app.config import settings
 from app.routes.video_routes import router as video_router
-from app.services import SnapTubeError
+from app.routes.cookies_routes import router as cookies_router
+from app.services.base_extractor import SnapTubeError
+from app.routes.download_routes import router as download_router
+
+#from app.services import SnapTubeError
 
 # Configure logging
 logging.basicConfig(
+    #level=logging.DEBUG,  # Cambia a DEBUG para más detalle
+    #format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     level=getattr(logging, settings.LOG_LEVEL),
     format=settings.LOG_FORMAT
 )
+#logger = logging.getLogger("uvicorn.error")
+#logger.setLevel(logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 # Rate limiter
@@ -72,7 +90,10 @@ app.add_middleware(
 )
 
 # Include routers
-app.include_router(video_router)
+app.include_router(video_router) #cookies_routes
+app.include_router(cookies_router, prefix="/api")
+app.include_router(download_router, prefix="/api/v1")
+
 
 # Root endpoint
 @app.get("/", response_class=JSONResponse)
@@ -173,7 +194,12 @@ async def cleanup_temp_files():
         logger.error(f"⚠️ Cleanup error: {str(e)}")
 
 if __name__ == "__main__":
+    logger.info("🚀 Iniciando Snaptube-Like YouTube API...")
+    #logger.info(f"📊 Configuración - Proxies: {Config.USE_PROXIES}, Cookies: {Config.USE_BROWSER_COOKIES}")
+    
+    # Puerto para deployment (Railway, Render, etc.)
     import uvicorn
+    #port = int(os.getenv("PORT", Config.APP_PORT))
     
     uvicorn.run(
         "app.main:app",

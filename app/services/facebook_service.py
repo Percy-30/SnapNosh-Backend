@@ -3,8 +3,10 @@
 # ====================================================================
 import asyncio
 import logging
+import os
 import re
 import json
+import tempfile
 import yt_dlp
 from bs4 import BeautifulSoup
 from typing import Dict, Any, Optional
@@ -242,3 +244,48 @@ class FacebookExtractor(BaseExtractor):
             "view_count": info.get('view_count', 0),
             "method": method
         }
+        
+    async def extract_audio_url(self, url: str, cookies: Optional[str] = None) -> str:
+        ydl_opts = {
+            "format": "bestaudio/best",
+            "quiet": True,
+            "no_warnings": True,
+            "http_headers": self.get_platform_headers(),  # si tienes este método para headers
+        }
+    
+        temp_cookie_path = None
+        if cookies:
+            import tempfile
+            fd, temp_cookie_path = tempfile.mkstemp(suffix=".txt")
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                f.write(cookies)
+            ydl_opts["cookiefile"] = temp_cookie_path
+    
+        loop = asyncio.get_event_loop()
+        try:
+            def extract_sync():
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    return ydl.extract_info(url, download=False)
+    
+            info = await loop.run_in_executor(None, extract_sync)
+    
+            audio_formats = [
+                f for f in info.get("formats", [])
+                if f.get("acodec") != "none" and f.get("vcodec") == "none" and f.get("url")
+            ]
+    
+            if audio_formats:
+                audio_formats.sort(key=lambda f: f.get("abr") or 0, reverse=True)
+                audio_url = audio_formats[0]["url"]
+            elif info.get("url") and info.get("acodec") != "none" and info.get("vcodec") == "none":
+                audio_url = info["url"]
+            else:
+                raise SnapTubeError("No se encontró URL directa de audio en Facebook")
+    
+            return audio_url
+        finally:
+            if temp_cookie_path:
+                try:
+                    os.unlink(temp_cookie_path)
+                except Exception:
+                    pass

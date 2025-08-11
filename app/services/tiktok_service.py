@@ -273,6 +273,46 @@ class TikTokExtractor(BaseExtractor):
             "comment_count": video_data.get('comment_count', 0),
             "method": method
         }
+        
+    def extract_audio_url(self, url: str, cookies: Optional[str] = None) -> str:
+        ydl_opts = {
+            "format": "bestaudio/best",
+            "quiet": True,
+            "no_warnings": True,
+            "cookiefile": None,
+            "http_headers": self.get_platform_headers(),
+        }
+        if cookies:
+            import tempfile
+            import os
+            fd, temp_cookie_path = tempfile.mkstemp(suffix=".txt")
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                f.write(cookies)
+            ydl_opts["cookiefile"] = temp_cookie_path
+
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=False)
+
+        audio_formats = [
+            f for f in info.get("formats", [])
+            if f.get("acodec") != "none" and f.get("vcodec") == "none" and f.get("url")
+        ]
+        if audio_formats:
+            audio_formats.sort(key=lambda f: f.get("abr") or 0, reverse=True)
+            audio_url = audio_formats[0]["url"]
+        elif info.get("url") and info.get("acodec") != "none" and info.get("vcodec") == "none":
+            audio_url = info["url"]
+        else:
+            raise SnapTubeError("No se encontró URL directa de audio en TikTok")
+
+        if cookies:
+            try:
+                os.unlink(temp_cookie_path)
+            except Exception:
+                pass
+
+        return audio_url
+    
     
     def _get_quality_info(self, info: Dict) -> Dict:
         """Extract quality information"""
@@ -287,3 +327,6 @@ class TikTokExtractor(BaseExtractor):
         """Get cookies file path if exists"""
         cookies_path = settings.COOKIES_DIR / f"{self.platform}_cookies.txt"
         return str(cookies_path) if cookies_path.exists() else None
+    
+    
+    

@@ -1,0 +1,15 @@
+# Carpetas y archivos generados automáticamente
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+data/
+logs/
+# Entornos virtuales
+env/
+venv/
+
+# Configs locales
+.env
+*.log

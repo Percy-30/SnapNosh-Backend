@@ -15,20 +15,46 @@ import yt_dlp
 
 from app.config import settings
 from app.models.video_models import VideoInfo, ErrorResponse, SuccessResponse
-from app.services import TikTokExtractor, FacebookExtractor, YouTubeExtractor, SnapTubeError
+#from app.services import  TikTokExtractor, FacebookExtractor, YouTubeExtractor, SnapTubeError
+from app.services.tiktok_service import TikTokExtractor
+from app.services.facebook_service import FacebookExtractor
+from app.services.twitter_service import TwitterExtractor
+from app.services.instagram_service import InstagramExtractor
+from app.services.threads_service import ThreadsExtractor
+from app.services.youtube_service import YouTubeExtractor
+from app.services.base_extractor import SnapTubeError
 from app.utils.validators import URLValidator
-from utils.constants import QUALITY_FORMATS, USER_AGENTS
+#from app.utils.constants import QUALITY_FORMATS, USER_AGENTS
+from ..utils.constants import QUALITY_FORMATS, USER_AGENTS
+from app.services.tiktok_audio_downloader import TikTokAPIDownloader
+
+#from utils.constants import QUALITY_FORMATS, USER_AGENTS
 
 # Setup
 router = APIRouter(prefix="/api/v1", tags=["videos"])
 limiter = Limiter(key_func=get_remote_address)
 logger = logging.getLogger(__name__)
 
-# Initialize extractors
+COOKIES_FILE = Path("cookies.txt")
+
+yt_extractor = YouTubeExtractor(cookies_file=str(COOKIES_FILE) if COOKIES_FILE.exists() else None)
+fb_extractor = FacebookExtractor()
+tt_audio_downloader = TikTokAPIDownloader()
+tw_extractor = TwitterExtractor()
+istg_extractor = InstagramExtractor()
+trds_extractor = ThreadsExtractor(headless=True)  # Configuración mejorada para Threads
+#tt_extractor = TikTokExtractor()
+
+validator = URLValidator()
+
 extractors = {
     "tiktok": TikTokExtractor(),
     "facebook": FacebookExtractor(),
-    "youtube": YouTubeExtractor()
+    "youtube": YouTubeExtractor(cookies_file=str(COOKIES_FILE) if COOKIES_FILE.exists() else None),
+    "twitter": TwitterExtractor(),  # <--- aquí
+    "instagram": InstagramExtractor(),
+    "threads": ThreadsExtractor(headless=True)  # Configuración mejorada para Threads
+    #"youtube": YouTubeExtractor()
 }
 
 class SnapTubeService:
@@ -258,12 +284,29 @@ async def get_video_formats(
     """Get all available formats for a video"""
     try:
         video_info = await service.extract_video(url=url, cookies=cookies)
+        formats = video_info.get('formats', [])
+        
+        if not formats:
+            # Opcional: log o raise para avisar que no hay formatos
+            logger.warning(f"No formats found for URL: {url}")
         
         return {
             "status": "success",
             "platform": video_info['platform'],
             "title": video_info['title'],
-            "available_qualities": list(QUALITY_FORMATS.keys()),
+            "available_formats": [
+                {
+                    "format_id": f.get('format_id'),
+                    "ext": f.get('ext'),
+                    "acodec": f.get('acodec'),
+                    "vcodec": f.get('vcodec'),
+                    "height": f.get('height'),
+                    "fps": f.get('fps'),
+                    "filesize": f.get('filesize') or f.get('filesize_approx'),
+                    "tbr": f.get('tbr'),
+                }
+                for f in formats
+            ],
             "recommended": "720p",
             "current_quality": video_info.get('quality', {})
         }
@@ -271,6 +314,65 @@ async def get_video_formats(
     except Exception as e:
         logger.error(f"💥 Format extraction error: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to get formats")
+
+
+@router.get("/audio")
+async def get_audio_url(
+    url: str = Query(..., description="URL del video"),
+    cookies: str = Header(None, description="Cookies YouTube, opcional")
+):
+    platform = validator.detect_platform(url)
+    try:
+        if platform == "youtube":
+            audio_url = await yt_extractor.extract_audio_url(url, cookies)
+        elif platform == "facebook":
+            audio_url = await fb_extractor.extract_audio_url(url)
+        elif platform == "twitter":
+            audio_url = await tw_extractor.extract_audio_url(url)
+        elif platform == "instagram":
+            audio_url = await istg_extractor.extract_audio_url(url)
+        else:
+            raise HTTPException(status_code=400, detail="Plataforma no soportada")
+        return {"status": "success", "audio_url": audio_url}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/tiktok/audio/download")
+@limiter.limit(settings.RATE_LIMIT_DOWNLOAD)
+async def download_tiktok_audio(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    url: str = Query(..., description="TikTok video URL"),
+    rapidapi_key: Optional[str] = Query(None, description="RapidAPI Key opcional"),
+    tiktok_token: Optional[str] = Query(None, description="TikTok Official API Token opcional"),
+):
+    """
+    Descarga el audio de un video TikTok usando varios métodos (TikMate, SSSTik, custom scraper...)
+    """
+    try:
+        async with TikTokAPIDownloader() as downloader:
+            result = await downloader.download_audio(url, rapidapi_key=rapidapi_key, tiktok_token=tiktok_token)
+
+        if not result["success"]:
+            raise HTTPException(status_code=400, detail=result["error"])
+
+        # Programa limpieza de archivo después de X segundos (settings.CLEANUP_INTERVAL)
+        background_tasks.add_task(cleanup_file, result["file_path"])
+
+        return FileResponse(
+            path=result["file_path"],
+            filename=result["filename"],
+            media_type="audio/mpeg",
+            headers={
+                "Content-Disposition": f"attachment; filename={result['filename']}"
+            }
+        )
+    except Exception as e:
+        logger.error(f"Audio download error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+    
+    
 
 @router.get("/platforms")
 async def get_supported_platforms():
