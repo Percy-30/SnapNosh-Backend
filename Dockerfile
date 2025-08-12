@@ -2,7 +2,7 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Instalar dependencias del sistema
+# Instalar dependencias del sistema necesarias para Playwright y ffmpeg
 RUN apt-get update && apt-get install -y \
     ffmpeg \
     wget \
@@ -24,16 +24,16 @@ RUN apt-get update && apt-get install -y \
     libwayland-client0 \
     && rm -rf /var/lib/apt/lists/*
 
-# Copiar requirements antes para aprovechar cache
+# Copiar requirements antes para aprovechar cache de Docker
 COPY requirements.txt .
 
-# Instalar paquetes python, incluido playwright
+# Instalar dependencias Python (incluido playwright)
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Ahora sí, instalar navegadores de playwright
+# Instalar navegadores de Playwright (chromium)
 RUN playwright install --with-deps chromium
 
-# Copiar código fuente
+# Copiar el código fuente
 COPY app/ ./app/
 
 # Crear directorios necesarios
@@ -43,7 +43,7 @@ RUN mkdir -p /tmp/snaptube cookies
 ENV PYTHONPATH=/app
 ENV HOST=0.0.0.0
 ENV PORT=8000
-ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+# ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright  # Opcional, eliminar si no usas ruta custom
 
 # Exponer puerto
 EXPOSE 8000
@@ -52,5 +52,5 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8000/api/v1/health || exit 1
 
-# Ejecutar la app con Gunicorn y Uvicorn worker
+# Ejecutar la aplicación con Gunicorn y Uvicorn worker
 CMD ["gunicorn", "app.main:app", "-w", "4", "-k", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8000"]
