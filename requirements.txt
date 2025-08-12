@@ -13,6 +13,7 @@ playwright
 requests
 beautifulsoup4
 lxml
+selenium
 
 # Utilities
 tenacity

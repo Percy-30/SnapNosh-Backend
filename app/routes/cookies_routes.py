@@ -1,16 +1,25 @@
-from fastapi import APIRouter, HTTPException, Query
-from app.services.cookie_manager import CookieManager
+import os
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
+from app.services.youtube_cookie_updater import login_youtube_and_save_cookies
+
 
 router = APIRouter()
+API_TOKEN = os.getenv("CRON_SECRET_TOKEN")
 
-@router.post("/cookies/export")
-async def export_cookies(browser: str = Query("chrome", description="Nombre del navegador")):
-    """
-    Endpoint para exportar cookies automáticamente desde el navegador indicado.
-    """
-    cm = CookieManager()
-    success = cm.auto_export_cookies(browser.lower())
-    if success:
-        return {"status": "success", "message": f"Cookies exportadas correctamente desde {browser}"}
+def update_youtube_cookies_task():
+    EMAIL = os.getenv("YOUTUBE_EMAIL")
+    PASSWORD = os.getenv("YOUTUBE_PASSWORD")
+    OUTPUT_PATH = os.getenv("YOUTUBE_COOKIES_PATH", "cookies.txt")
+    if EMAIL and PASSWORD:
+        login_youtube_and_save_cookies(EMAIL, PASSWORD, OUTPUT_PATH)
     else:
-        raise HTTPException(status_code=500, detail=f"No se pudo exportar cookies desde {browser}")
+        print("❌ No se puede actualizar cookies, faltan variables de entorno")
+
+@router.post("/cookies/update")
+async def update_cookies(request: Request, background_tasks: BackgroundTasks):
+    token = request.headers.get("Authorization")
+    if token != f"Bearer {API_TOKEN}":
+        raise HTTPException(status_code=403, detail="Unauthorized")
+    
+    background_tasks.add_task(update_youtube_cookies_task)
+    return {"status": "started", "message": "Actualización de cookies en proceso"}

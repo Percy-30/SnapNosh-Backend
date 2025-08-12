@@ -65,6 +65,10 @@ class YouTubeExtractor(BaseExtractor):
         force_ytdlp: bool = False,
         **kwargs
     ) -> Dict[str, Any]:
+        # Si no pasaron cookies explícitas, cargar las cookies actualizadas del backend
+        if not cookies:
+            cookies = CookieManager.read_cookies()
+            
         self.validator.validate_url(url)
          # Asegurar que exista archivo de cookies (autoexportar si no existe)
         cookies_file_path = self._ensure_cookies_file()

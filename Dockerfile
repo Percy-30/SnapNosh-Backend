@@ -36,14 +36,14 @@ RUN playwright install --with-deps chromium
 # Copiar el código fuente
 COPY app/ ./app/
 
-# Crear directorios necesarios
-RUN mkdir -p /tmp/snaptube cookies
+# Crear archivo vacío para cookies persistentes
+RUN touch /app/cookies.txt
 
 # Variables de entorno
 ENV PYTHONPATH=/app
 ENV HOST=0.0.0.0
 ENV PORT=8000
-# ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright  # Opcional, eliminar si no usas ruta custom
+ENV YOUTUBE_COOKIES_PATH=./cookies.txt
 
 # Exponer puerto
 EXPOSE 8000
