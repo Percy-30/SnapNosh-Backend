@@ -27,3 +27,4 @@ redis
 
 # Development (optional)
 python-dotenv
+boto3
