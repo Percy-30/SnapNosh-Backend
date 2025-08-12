@@ -113,6 +113,16 @@ async def root():
         }
     }
 
+@app.get("/debug/cookies")
+async def debug_cookies():
+    path = os.getenv("YOUTUBE_COOKIES_PATH", "cookies.txt")
+    if os.path.exists(path):
+        with open(path, "r", encoding="utf-8") as f:
+            content = f.read(500)  # lee primeros 500 caracteres
+        return {"path": path, "content_preview": content}
+    else:
+        return {"error": "Archivo no encontrado", "path": path}
+
 # Exception handlers
 @app.exception_handler(SnapTubeError)
 async def snaptube_exception_handler(request: Request, exc: SnapTubeError):
