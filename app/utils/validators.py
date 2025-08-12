@@ -34,8 +34,10 @@ class URLValidator:
         for platform, patterns in PLATFORM_PATTERNS.items():
             if any(pattern in domain for pattern in patterns):
                 return platform
-        
-        raise ValueError(f"Unsupported platform: {domain}")
+            
+        # En lugar de levantar error, asumimos genérico:
+        return "downloader"
+        #raise ValueError(f"Unsupported platform: {domain}")
     
     @staticmethod
     def validate_video_url(video_url: str, platform: str) -> bool:

@@ -16,6 +16,7 @@ import yt_dlp
 from app.config import settings
 from app.models.video_models import VideoInfo, ErrorResponse, SuccessResponse
 #from app.services import  TikTokExtractor, FacebookExtractor, YouTubeExtractor, SnapTubeError
+from app.services.generic_downloader import GenericDownloader
 from app.services.tiktok_service import TikTokExtractor
 from app.services.facebook_service import FacebookExtractor
 from app.services.twitter_service import TwitterExtractor
@@ -43,6 +44,7 @@ tt_audio_downloader = TikTokAPIDownloader()
 tw_extractor = TwitterExtractor()
 istg_extractor = InstagramExtractor()
 trds_extractor = ThreadsExtractor(headless=True)  # Configuración mejorada para Threads
+downloader = GenericDownloader()
 #tt_extractor = TikTokExtractor()
 
 validator = URLValidator()
@@ -53,7 +55,8 @@ extractors = {
     "youtube": YouTubeExtractor(cookies_file=str(COOKIES_FILE) if COOKIES_FILE.exists() else None),
     "twitter": TwitterExtractor(),  # <--- aquí
     "instagram": InstagramExtractor(),
-    "threads": ThreadsExtractor(headless=True)  # Configuración mejorada para Threads
+    "threads": ThreadsExtractor(headless=True),  # Configuración mejorada para Threads
+    "downloader": GenericDownloader()
     #"youtube": YouTubeExtractor()
 }
 

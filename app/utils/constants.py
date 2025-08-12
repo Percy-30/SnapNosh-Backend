@@ -100,10 +100,12 @@ THREADS_HEADERS: Dict[str, str] = {
 QUALITY_FORMATS: Dict[str, str] = {
     "best": "bestvideo+bestaudio/best",
     "worst": "worstvideo+worstaudio/worst",
+    "144p": "bestvideo[height<=144]+bestaudio/best[height<=144]",
     "1080p": "bestvideo[height<=1080]+bestaudio/best[height<=1080]",
     "720p": "bestvideo[height<=720]+bestaudio/best[height<=720]",
     "480p": "bestvideo[height<=480]+bestaudio/best[height<=480]",
-    "360p": "bestvideo[height<=360]+bestaudio/best[height<=360]"
+    "360p": "bestvideo[height<=360]+bestaudio/best[height<=360]",
+    "2160p": "bestvideo[height<=2160]+bestaudio/best[height<=2160]"  # 4k
 }
 
 # Detectores de plataformas para URLs
@@ -113,7 +115,8 @@ PLATFORM_PATTERNS: Dict[str, List[str]] = {
     "youtube": ["youtube.com", "youtu.be", "m.youtube.com"],
     "twitter": ["twitter.com", "mobile.twitter.com", "x.com"],
     "instagram": ["instagram.com", "www.instagram.com", "instagr.am"],
-    "threads": ["threads.net", "www.threads.net", "threads.com", "www.threads.com"] # NUEVO: Threads
+    "threads": ["threads.net", "www.threads.net", "threads.com", "www.threads.com"], # NUEVO: Threads
+    "downloader": [],  # para URLs genéricas sin patrón específico
 }
 
 # APIs de terceros usadas (ejemplo para TikTok)
@@ -131,5 +134,6 @@ VALID_VIDEO_DOMAINS: Dict[str, List[str]] = {
     "youtube": ["googlevideo.com", "youtube.com"],
     "twitter": ["twitter.com", "mobile.twitter.com", "x.com", "twimg.com"],
     "instagram": ["instagram.com", "cdninstagram.com", "instagram.fxyz1-1.fna.fbcdn.net"],
-    "threads": ["threads.net", "www.threads.net", "threads.com", "www.threads.com"]  # NUEVO: Threads dominios válidos
+    "threads": ["threads.net", "www.threads.net", "threads.com", "www.threads.com"], # NUEVO: Threads dominios válidos
+    "downloader": [],
 }
