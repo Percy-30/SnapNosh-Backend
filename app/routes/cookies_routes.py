@@ -14,7 +14,7 @@ def upload_to_s3(filename, bucket, key):
 def update_youtube_cookies_task():
     EMAIL = os.getenv("YOUTUBE_EMAIL")
     PASSWORD = os.getenv("YOUTUBE_PASSWORD")
-    OUTPUT_PATH = os.getenv("YOUTUBE_COOKIES_PATH", "cookies.txt")
+    OUTPUT_PATH = os.getenv("YOUTUBE_COOKIES_PATH", "app/cookies/cookies.txt")
     S3_BUCKET = os.getenv("S3_BUCKET_NAME")
     S3_KEY = os.getenv("S3_COOKIES_KEY", "cookies.txt")
 
