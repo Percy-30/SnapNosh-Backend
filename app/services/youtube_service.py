@@ -46,17 +46,24 @@ class YouTubeExtractor(BaseExtractor):
         """Intenta asegurar que exista archivo de cookies válido, exportando desde navegador si no."""
         if self._cookies_file and Path(self._cookies_file).exists():
             return self._cookies_file
+        logger.warning("No se encontró archivo de cookies válido. Debes subir cookies.txt actualizado.")
+        #return None
+      # Si no existe cookies.txt, lanzamos error
+        raise SnapTubeError(
+            "No se encontró archivo de cookies válido en 'app/cookies/cookies.txt'. "
+            "Debes subir cookies.txt generado desde un navegador real."
+        )
 
         # Intentar exportar cookies automáticamente desde Chrome o Edge
-        for browser in ['chrome', 'edge']:
-            output_path = Path("app/cookies/cookies.txt")
-            success = self.cookie_manager.export_browser_cookies(browser, output_path)
-            if success and self.cookie_manager.validate_cookies_file(output_path):
-                self._cookies_file = str(output_path)
-                logger.info(f"Archivo de cookies generado automáticamente desde {browser}")
-                return self._cookies_file
-        logger.warning("No se pudo generar archivo de cookies automáticamente")
-        return None
+        #for browser in ['chrome', 'edge']:
+        #    output_path = Path("app/cookies/cookies.txt")
+        #    success = self.cookie_manager.export_browser_cookies(browser, output_path)
+        #    if success and self.cookie_manager.validate_cookies_file(output_path):
+        #        self._cookies_file = str(output_path)
+        #        logger.info(f"Archivo de cookies generado automáticamente desde {browser}")
+        #        return self._cookies_file
+        #logger.warning("No se pudo generar archivo de cookies automáticamente")
+        #return None
 
     async def extract(
         self,
