@@ -1,10 +1,11 @@
 import os
 from typing import Optional
+from pathlib import Path
 
 class CookieManager:
     """Gestiona carga y acceso a cookies YouTube"""
 
-    COOKIES_FILE_PATH = os.getenv("YOUTUBE_COOKIES_PATH", "cookies.txt")
+    COOKIES_FILE_PATH = Path(os.getenv("YOUTUBE_COOKIES_PATH", "app/cookies/cookies.txt"))
 
     @classmethod
     def get_cookies_path(cls) -> Optional[str]:

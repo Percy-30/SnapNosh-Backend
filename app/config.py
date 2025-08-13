@@ -32,6 +32,9 @@ class Settings:
     else:
         TEMP_DIR: Path = Path(os.getenv("TEMP_DIR", "/tmp/snaptube"))
         COOKIES_DIR: Path = Path(os.getenv("COOKIES_DIR", "/tmp/snaptube/cookies"))
+    
+    # Aquí definimos la ruta completa al archivo de cookies de YouTube
+    YOUTUBE_COOKIES_PATH: Path = Path(os.getenv("YOUTUBE_COOKIES_PATH", "app/cookies/cookies.txt"))
 
     MAX_FILE_SIZE: int = int(os.getenv("MAX_FILE_SIZE", 500 * 1024 * 1024))  # 500MB
     CLEANUP_INTERVAL: int = int(os.getenv("CLEANUP_INTERVAL", 3600))  # 1 hour
@@ -52,5 +55,6 @@ class Settings:
         # Create necessary directories with parents=True
         self.TEMP_DIR.mkdir(parents=True, exist_ok=True)
         self.COOKIES_DIR.mkdir(parents=True, exist_ok=True)
+        self.YOUTUBE_COOKIES_PATH.parent.mkdir(parents=True, exist_ok=True)
 
 settings = Settings()

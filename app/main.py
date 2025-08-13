@@ -53,6 +53,7 @@ async def lifespan(app: FastAPI):
     # Create necessary directories
     settings.TEMP_DIR.mkdir(exist_ok=True)
     settings.COOKIES_DIR.mkdir(exist_ok=True)
+    settings.YOUTUBE_COOKIES_PATH.parent.mkdir(parents=True, exist_ok=True)
     
     # Start background cleanup task
     cleanup_task = asyncio.create_task(periodic_cleanup())
@@ -115,13 +116,14 @@ async def root():
 
 @app.get("/debug/cookies")
 async def debug_cookies():
-    path = os.getenv("YOUTUBE_COOKIES_PATH", "cookies.txt")
+    #path = os.getenv("YOUTUBE_COOKIES_PATH", "cookies.txt")
+    path = settings.YOUTUBE_COOKIES_PATH
     if os.path.exists(path):
         with open(path, "r", encoding="utf-8") as f:
             content = f.read(500)  # lee primeros 500 caracteres
-        return {"path": path, "content_preview": content}
+        return {"path": str(path), "content_preview": content}
     else:
-        return {"error": "Archivo no encontrado", "path": path}
+        return {"error": "Archivo no encontrado", "path": str(path)}
 
 # Exception handlers
 @app.exception_handler(SnapTubeError)

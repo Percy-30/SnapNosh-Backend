@@ -24,33 +24,33 @@ RUN apt-get update && apt-get install -y \
     libwayland-client0 \
     && rm -rf /var/lib/apt/lists/*
 
-# Copiar requirements antes para aprovechar cache de Docker
+# Copiar requirements antes para cache
 COPY requirements.txt .
 
-# Instalar dependencias Python (incluido playwright)
+# Instalar dependencias Python (asegúrate que 'playwright' esté en requirements.txt)
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Instalar navegadores de Playwright (chromium)
-RUN playwright install --with-deps chromium
+# Instalar navegadores Playwright (chromium)
+RUN python -m playwright install --with-deps chromium
 
-# Copiar el código fuente
+# Copiar código fuente
 COPY app/ ./app/
 
-# Crear archivo vacío para cookies persistentes
-RUN touch /app/cookies.txt
+# Crear carpeta cookies y archivo cookies.txt vacío para persistencia
+RUN mkdir -p /app/cookies && touch /app/cookies/cookies.txt
 
 # Variables de entorno
 ENV PYTHONPATH=/app
 ENV HOST=0.0.0.0
 ENV PORT=8000
-ENV YOUTUBE_COOKIES_PATH=./cookies.txt
+ENV YOUTUBE_COOKIES_PATH=/app/cookies/cookies.txt
 
 # Exponer puerto
 EXPOSE 8000
 
-# Healthcheck
+# Healthcheck para comprobar que la API está arriba
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8000/api/v1/health || exit 1
 
-# Ejecutar la aplicación con Gunicorn y Uvicorn worker
+# Comando para iniciar la aplicación con Gunicorn + Uvicorn workers
 CMD ["gunicorn", "app.main:app", "-w", "4", "-k", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8000"]

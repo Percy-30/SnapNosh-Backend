@@ -19,7 +19,7 @@ from app.services.snapnosh_service import EnhancedSnapNoshConverter
 
 logger = logging.getLogger(__name__)
 
-COOKIES_FILE = Path("cookies.txt")
+COOKIES_FILE = Path("app/cookies/cookies.txt")
 
 class YouTubeExtractor(BaseExtractor):
     """Extractor de YouTube con cookies automáticas y fallback multi-cliente"""
@@ -49,7 +49,7 @@ class YouTubeExtractor(BaseExtractor):
 
         # Intentar exportar cookies automáticamente desde Chrome o Edge
         for browser in ['chrome', 'edge']:
-            output_path = Path("cookies.txt")
+            output_path = Path("app/cookies/cookies.txt")
             success = self.cookie_manager.export_browser_cookies(browser, output_path)
             if success and self.cookie_manager.validate_cookies_file(output_path):
                 self._cookies_file = str(output_path)
@@ -65,10 +65,6 @@ class YouTubeExtractor(BaseExtractor):
         force_ytdlp: bool = False,
         **kwargs
     ) -> Dict[str, Any]:
-        # Si no pasaron cookies explícitas, cargar las cookies actualizadas del backend
-        if not cookies:
-            cookies = CookieManager.read_cookies()
-            
         self.validator.validate_url(url)
          # Asegurar que exista archivo de cookies (autoexportar si no existe)
         cookies_file_path = self._ensure_cookies_file()

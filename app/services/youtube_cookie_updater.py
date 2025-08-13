@@ -8,6 +8,8 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
 from selenium.webdriver.common.keys import Keys
 from dotenv import load_dotenv
+from pathlib import Path
+
 
 load_dotenv()
 
@@ -630,7 +632,8 @@ def manual_intervention_mode(email: str, password: str, output_path: str):
 if __name__ == "__main__":
     EMAIL = os.getenv("YOUTUBE_EMAIL")
     PASSWORD = os.getenv("YOUTUBE_PASSWORD")
-    OUTPUT_PATH = os.getenv("YOUTUBE_COOKIES_PATH", "./cookies.txt")
+    OUTPUT_PATH = Path(os.getenv("YOUTUBE_COOKIES_PATH", "app/cookies/cookies.txt"))
+    #OUTPUT_PATH = os.getenv("YOUTUBE_COOKIES_PATH", "./cookies.txt")
     
     if not EMAIL or not PASSWORD:
         print("❌ Falta configurar variables de entorno YOUTUBE_EMAIL o YOUTUBE_PASSWORD")

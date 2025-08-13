@@ -36,7 +36,7 @@ router = APIRouter(prefix="/api/v1", tags=["videos"])
 limiter = Limiter(key_func=get_remote_address)
 logger = logging.getLogger(__name__)
 
-COOKIES_FILE = Path("cookies.txt")
+COOKIES_FILE = Path("app/cookies/cookies.txt")
 
 yt_extractor = YouTubeExtractor(cookies_file=str(COOKIES_FILE) if COOKIES_FILE.exists() else None)
 fb_extractor = FacebookExtractor()

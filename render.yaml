@@ -3,13 +3,21 @@ services:
     name: youtube-cookies-api
     runtime: python
     buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn main:app --host 0.0.0.0 --port 10000
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port 8000
     envVars:
       - key: PYTHON_VERSION
-        value: 3.10
+        value: "3.11"         # Actualizado a 3.11, coincidiendo con Dockerfile
       - key: REQUEST_TIMEOUT
-        value: "120"
+        value: "30"           # Usar valor coherente con settings.py
+      - key: YOUTUBE_COOKIES_PATH
+        value: "/app/cookies/cookies.txt"  # Ruta consistente con Dockerfile y app config
+      - key: HOST
+        value: "0.0.0.0"
+      - key: PORT
+        value: "8000"
+      - key: USE_PROXIES
+        value: "false"
 
 volumes:
-  - ./cookies:/app/cookies:ro
-  - /tmp/snaptube:/tmp/snaptube
+  - ./cookies:/app/cookies:ro        # Monta carpeta local cookies en contenedor
+  - /tmp/snaptube:/tmp/snaptube      # Monta temp local en temp del contenedor
