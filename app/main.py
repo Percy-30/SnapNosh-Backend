@@ -116,12 +116,9 @@ async def root():
     }
     
 @app.get("/check-cookies")
-def check_cookies():
-    cookies_path = Path("app/cookies/cookies.txt")
-    return {
-        "absolute_path": str(cookies_path.resolve()),
-        "exists": cookies_path.exists()
-    }
+async def check_cookies():
+    path = Path(os.getenv("YOUTUBE_COOKIES_PATH", "app/cookies/cookies.txt"))
+    return {"exists": path.exists(), "path": str(path.resolve())}
     
 @app.get("/debug/cookies")
 async def debug_cookies():
