@@ -5,6 +5,7 @@ import os
 import tempfile
 from pathlib import Path
 from typing import Dict, Any, Optional
+from urllib.parse import urlparse, parse_qs, urlunparse
 
 from app.utils.proxy import ProxyRotator
 from app.services.cookie_manager import CookieManager
@@ -15,23 +16,16 @@ from app.services.base_extractor import BaseExtractor, SnapTubeError
 from app.utils.constants import YOUTUBE_HEADERS, QUALITY_FORMATS, USER_AGENTS
 from app.config import settings
 
-from app.services.snapnosh_service import EnhancedSnapNoshConverter
-
 logger = logging.getLogger(__name__)
-
-COOKIES_FILE = Path("app/cookies/cookies.txt")
 
 class YouTubeExtractor(BaseExtractor):
     """Extractor de YouTube con cookies automáticas y fallback multi-cliente"""
 
     def __init__(self, cookies_file: Optional[str] = None):
-        # Si se pasa cookies_file lo usamos; si no, se usa COOKIES_FILE si existe
-        self._cookies_file = cookies_file or (str(COOKIES_FILE) if COOKIES_FILE.exists() else None)
-        super().__init__()  # si tu BaseExtractor necesita inicialización
-        
+        # Si se pasa cookies_file lo usamos; si no, se intenta obtener de CookieManager
+        self._cookies_file = cookies_file or CookieManager.get_cookies_path()
+        super().__init__()
         self.cookie_manager = CookieManager()
-
-        # Configurar lista de proxies desde settings, si está activado
         proxy_list = settings.PROXY_LIST.split(",") if settings.USE_PROXIES else []
         self.proxy_rotator = ProxyRotator(proxy_list)
 
@@ -42,28 +36,33 @@ class YouTubeExtractor(BaseExtractor):
     def get_platform_headers(self) -> Dict[str, str]:
         return YOUTUBE_HEADERS
 
-    def _ensure_cookies_file(self) -> Optional[str]:
-        """Intenta asegurar que exista archivo de cookies válido, exportando desde navegador si no."""
-        if self._cookies_file and Path(self._cookies_file).exists():
+    def _ensure_cookies_file(self) -> str:
+        """Asegura que haya cookies válidas; si no, intenta exportarlas desde navegador"""
+        if self._cookies_file and CookieManager.validate_cookies_file(Path(self._cookies_file)):
             return self._cookies_file
-        logger.warning("No se encontró archivo de cookies válido. Debes subir cookies.txt actualizado.")
-        #return None
-      # Si no existe cookies.txt, lanzamos error
+
+        # Intentar exportar cookies desde navegador
+        exported = CookieManager.export_browser_cookies("chrome") or CookieManager.export_browser_cookies("edge")
+        if exported:
+            self._cookies_file = exported
+            return self._cookies_file
+
         raise SnapTubeError(
             "No se encontró archivo de cookies válido en 'app/cookies/cookies.txt'. "
             "Debes subir cookies.txt generado desde un navegador real."
         )
 
-        # Intentar exportar cookies automáticamente desde Chrome o Edge
-        #for browser in ['chrome', 'edge']:
-        #    output_path = Path("app/cookies/cookies.txt")
-        #    success = self.cookie_manager.export_browser_cookies(browser, output_path)
-        #    if success and self.cookie_manager.validate_cookies_file(output_path):
-        #        self._cookies_file = str(output_path)
-        #        logger.info(f"Archivo de cookies generado automáticamente desde {browser}")
-        #        return self._cookies_file
-        #logger.warning("No se pudo generar archivo de cookies automáticamente")
-        #return None
+    def _clean_url(self, url: str) -> str:
+        """Elimina parámetros innecesarios de YouTube"""
+        parsed = urlparse(url)
+        query = parse_qs(parsed.query)
+        clean_query = {}
+        if "v" in query:
+            clean_query["v"] = query["v"]
+        clean_url = urlunparse((parsed.scheme, parsed.netloc, parsed.path, "", "", ""))
+        if clean_query:
+            clean_url += f"?v={clean_query['v'][0]}"
+        return clean_url
 
     async def extract(
         self,
@@ -73,7 +72,7 @@ class YouTubeExtractor(BaseExtractor):
         **kwargs
     ) -> Dict[str, Any]:
         self.validator.validate_url(url)
-         # Asegurar que exista archivo de cookies (autoexportar si no existe)
+        url = self._clean_url(url)
         cookies_file_path = self._ensure_cookies_file()
 
         ydl_opts = {
@@ -82,12 +81,7 @@ class YouTubeExtractor(BaseExtractor):
             "noplaylist": True,
             "quiet": True,
             "no_warnings": True,
-            "extractor_args": {
-                "youtube": {
-                    "skip": ["hls", "dash"],
-                    "player_client": ["android", "web"],
-                }
-            },
+            "extractor_args": {"youtube": {"skip": ["hls", "dash"], "player_client": ["android", "web"]}},
             "http_headers": {
                 "User-Agent": self.get_random_user_agent(),
                 "Accept-Language": "en-US,en;q=0.9",
@@ -98,16 +92,14 @@ class YouTubeExtractor(BaseExtractor):
 
         cookies_path = None
         proxy = None
-        
+
         try:
-            # si pasan cookies por header, las guardo temporalmente y las uso
             if cookies:
                 cookies_path = self._save_temp_cookies(cookies)
                 ydl_opts["cookiefile"] = cookies_path
             elif cookies_file_path:
                 ydl_opts["cookiefile"] = cookies_file_path
 
-            # Asignar proxy si está habilitado y disponible
             if settings.USE_PROXIES:
                 proxy = self.proxy_rotator.get_yt_dlp_proxy_option()
                 if proxy:
@@ -123,7 +115,6 @@ class YouTubeExtractor(BaseExtractor):
                 raise SnapTubeError("No se pudo extraer información del video")
 
             video_url = self._get_best_video_url(info)
-
             if not video_url:
                 if force_ytdlp:
                     return await self._force_extract(url, ydl_opts)
@@ -133,14 +124,10 @@ class YouTubeExtractor(BaseExtractor):
 
         except yt_dlp.utils.DownloadError as e:
             msg = str(e)
-            # Si hay problemas de proxy, marcar proxy como fallido
             if settings.USE_PROXIES and proxy and ("could not connect" in msg.lower() or "proxy" in msg.lower()):
                 self.proxy_rotator.mark_proxy_failed(proxy)
-
             if "Sign in to confirm you're not a bot" in msg:
-                raise SnapTubeError(
-                    "YouTube requiere cookies válidas. Usa la extensión 'Get cookies.txt'."
-                )
+                raise SnapTubeError("YouTube requiere cookies válidas. Usa la extensión 'Get cookies.txt'.")
             raise SnapTubeError(f"Error de YouTube: {msg}")
 
         except Exception as e:
@@ -167,7 +154,6 @@ class YouTubeExtractor(BaseExtractor):
         for client in clients:
             try:
                 opts = base_opts.copy()
-                # asegúrate de copiar profundamente extractor_args si es necesario
                 opts["extractor_args"] = opts.get("extractor_args", {}).copy()
                 opts["extractor_args"]["youtube"] = opts["extractor_args"].get("youtube", {}).copy()
                 opts["extractor_args"]["youtube"]["player_client"] = client["player_client"]
@@ -227,7 +213,7 @@ class YouTubeExtractor(BaseExtractor):
                 "format": info.get("ext", "mp4"),
             },
         }
-        
+
     def extract_audio_url(self, url: str, cookies: str = None) -> str:
         ydl_opts = {
             "format": "bestaudio/best",
@@ -238,23 +224,20 @@ class YouTubeExtractor(BaseExtractor):
         }
 
         if cookies:
-            # guardar cookies temporalmente si pasas por header, puedes agregar lógica aquí
-            pass
+            cookies_path = self._save_temp_cookies(cookies)
+            ydl_opts["cookiefile"] = cookies_path
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=False)
 
-        # Buscar mejor URL audio (directa)
         audio_formats = [
             f for f in info.get("formats", [])
             if f.get("acodec") != "none" and f.get("vcodec") == "none" and f.get("url")
         ]
         if audio_formats:
-            # Ordenar por bitrate de audio más alto
             audio_formats.sort(key=lambda f: f.get("abr") or 0, reverse=True)
             return audio_formats[0]["url"]
 
-        # Si no hay formatos separados, fallback a url principal si es audio
         if info.get("url") and info.get("acodec") != "none" and info.get("vcodec") == "none":
             return info["url"]
 
