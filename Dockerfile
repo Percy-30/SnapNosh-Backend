@@ -2,11 +2,12 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Instalar dependencias del sistema necesarias para Playwright y ffmpeg
+# Instalar dependencias del sistema necesarias para Playwright, ffmpeg y fuentes
 RUN apt-get update && apt-get install -y \
     ffmpeg \
     wget \
     curl \
+    fonts-unifont \
     libglib2.0-0 \
     libnss3 \
     libatk1.0-0 \
@@ -25,13 +26,13 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Copiar requirements antes para cache
-COPY requirements.txt .
+COPY requirements.txt ./
 
-# Instalar dependencias Python (asegúrate que 'playwright' esté en requirements.txt)
+# Instalar dependencias Python
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Instalar navegadores Playwright (chromium)
-RUN python -m playwright install --with-deps chromium
+# Instalar navegador Chromium con Playwright sin --with-deps
+RUN python -m playwright install chromium
 
 # Copiar código fuente
 COPY app/ ./app/
