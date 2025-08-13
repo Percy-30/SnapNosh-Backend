@@ -13,6 +13,7 @@ from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 from app.limits import limiter
+from pathlib import Path
 
 # --- CORRECCIÓN PARA EL ERROR ModuleNotFoundError ---
 # Se añade el directorio raíz del proyecto a la ruta de módulos de Python.
@@ -113,7 +114,15 @@ async def root():
             "platforms": "/api/v1/platforms"
         }
     }
-
+    
+@app.get("/check-cookies")
+def check_cookies():
+    cookies_path = Path("app/cookies/cookies.txt")
+    return {
+        "absolute_path": str(cookies_path.resolve()),
+        "exists": cookies_path.exists()
+    }
+    
 @app.get("/debug/cookies")
 async def debug_cookies():
     #path = os.getenv("YOUTUBE_COOKIES_PATH", "cookies.txt")
