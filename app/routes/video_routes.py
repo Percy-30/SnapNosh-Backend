@@ -22,6 +22,7 @@ from app.services.facebook_service import FacebookExtractor
 from app.services.twitter_service import TwitterExtractor
 from app.services.instagram_service import InstagramExtractor
 from app.services.threads_service import ThreadsExtractor
+
 from app.services.youtube_service import YouTubeExtractor
 from app.services.base_extractor import SnapTubeError
 from app.utils.validators import URLValidator
@@ -43,7 +44,8 @@ fb_extractor = FacebookExtractor()
 tt_audio_downloader = TikTokAPIDownloader()
 tw_extractor = TwitterExtractor()
 istg_extractor = InstagramExtractor()
-trds_extractor = ThreadsExtractor(headless=True)  # Configuración mejorada para Threads
+trds_extractor = ThreadsExtractor()
+#trds_extractor = ThreadsExtractor(headless=True)  # Configuración mejorada para Threads
 downloader = GenericDownloader()
 #tt_extractor = TikTokExtractor()
 
@@ -55,7 +57,8 @@ extractors = {
     "youtube": YouTubeExtractor(cookies_file=str(COOKIES_FILE) if COOKIES_FILE.exists() else None),
     "twitter": TwitterExtractor(),  # <--- aquí
     "instagram": InstagramExtractor(),
-    "threads": ThreadsExtractor(headless=True),  # Configuración mejorada para Threads
+    "threads": ThreadsExtractor(),
+    #"threads": ThreadsExtractor(headless=True),  # Configuración mejorada para Threads
     "downloader": GenericDownloader()
     #"youtube": YouTubeExtractor()
 }

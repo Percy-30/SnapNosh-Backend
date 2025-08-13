@@ -7,14 +7,14 @@ from pathlib import Path
 from typing import Dict, Any, Optional
 from urllib.parse import urlparse, parse_qs, urlunparse
 
-from app.utils.proxy import ProxyRotator
-from app.services.cookie_manager import CookieManager
-
 import yt_dlp
 
+from app.utils.proxy import ProxyRotator
+from app.services.cookie_manager import CookieManager
 from app.services.base_extractor import BaseExtractor, SnapTubeError
-from app.utils.constants import YOUTUBE_HEADERS, QUALITY_FORMATS, USER_AGENTS
+from app.utils.constants import YOUTUBE_HEADERS, QUALITY_FORMATS
 from app.config import settings
+from app.services.youtube_cookie_updater import login_youtube_and_save_cookies
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +22,6 @@ class YouTubeExtractor(BaseExtractor):
     """Extractor de YouTube con cookies automáticas y fallback multi-cliente"""
 
     def __init__(self, cookies_file: Optional[str] = None):
-        # Si se pasa cookies_file lo usamos; si no, se intenta obtener de CookieManager
         self._cookies_file = cookies_file or CookieManager.get_cookies_path()
         super().__init__()
         self.cookie_manager = CookieManager()
@@ -37,11 +36,10 @@ class YouTubeExtractor(BaseExtractor):
         return YOUTUBE_HEADERS
 
     def _ensure_cookies_file(self) -> str:
-        """Asegura que haya cookies válidas; si no, intenta exportarlas desde navegador"""
+        """Asegura que haya cookies válidas o intenta exportarlas."""
         if self._cookies_file and CookieManager.validate_cookies_file(Path(self._cookies_file)):
             return self._cookies_file
 
-        # Intentar exportar cookies desde navegador
         exported = CookieManager.export_browser_cookies("chrome") or CookieManager.export_browser_cookies("edge")
         if exported:
             self._cookies_file = exported
@@ -53,7 +51,7 @@ class YouTubeExtractor(BaseExtractor):
         )
 
     def _clean_url(self, url: str) -> str:
-        """Elimina parámetros innecesarios de YouTube"""
+        """Limpia la URL de YouTube de parámetros innecesarios."""
         parsed = urlparse(url)
         query = parse_qs(parsed.query)
         clean_query = {}
@@ -64,13 +62,8 @@ class YouTubeExtractor(BaseExtractor):
             clean_url += f"?v={clean_query['v'][0]}"
         return clean_url
 
-    async def extract(
-        self,
-        url: str,
-        cookies: Optional[str] = None,
-        force_ytdlp: bool = False,
-        **kwargs
-    ) -> Dict[str, Any]:
+    async def extract(self, url: str, cookies: Optional[str] = None, force_ytdlp: bool = False, _retry=False, **kwargs) -> Dict[str, Any]:
+        """Extrae información de un video de YouTube."""
         self.validator.validate_url(url)
         url = self._clean_url(url)
         cookies_file_path = self._ensure_cookies_file()
@@ -126,8 +119,21 @@ class YouTubeExtractor(BaseExtractor):
             msg = str(e)
             if settings.USE_PROXIES and proxy and ("could not connect" in msg.lower() or "proxy" in msg.lower()):
                 self.proxy_rotator.mark_proxy_failed(proxy)
-            if "Sign in to confirm you're not a bot" in msg:
-                raise SnapTubeError("YouTube requiere cookies válidas. Usa la extensión 'Get cookies.txt'.")
+
+            if (
+                "Sign in to confirm you're not a bot" in msg
+                or "Sign in to confirm your age" in msg
+                or "HTTP Error 403" in msg
+            ):
+                if not _retry:
+                    logger.warning("⚠️ Cookies inválidas o vencidas. Intentando actualización automática...")
+                    try:
+                        login_youtube_and_save_cookies()
+                        logger.info("✅ Cookies actualizadas. Reintentando extracción...")
+                        return await self.extract(url, cookies=cookies, force_ytdlp=force_ytdlp, _retry=True, **kwargs)
+                    except Exception as update_err:
+                        raise SnapTubeError(f"No se pudieron actualizar las cookies automáticamente: {update_err}")
+
             raise SnapTubeError(f"Error de YouTube: {msg}")
 
         except Exception as e:
@@ -190,10 +196,7 @@ class YouTubeExtractor(BaseExtractor):
 
     def _build_response(self, info: Dict, cookies_used: bool) -> Dict[str, Any]:
         bitrate = info.get("tbr")
-        if bitrate is not None:
-            bitrate = int(round(bitrate))
-        else:
-            bitrate = 0
+        bitrate = int(round(bitrate)) if bitrate is not None else 0
         return {
             "status": "success",
             "platform": "youtube",

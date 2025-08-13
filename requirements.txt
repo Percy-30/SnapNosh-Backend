@@ -14,6 +14,7 @@ requests
 beautifulsoup4
 lxml
 selenium
+webdriver-manager
 
 # Utilities
 tenacity

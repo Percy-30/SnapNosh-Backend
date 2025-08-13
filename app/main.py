@@ -3,73 +3,92 @@
 # ====================================================================
 import logging
 import asyncio
+from pathlib import Path
+from datetime import datetime
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
+
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 from app.limits import limiter
-from pathlib import Path
-
-# --- CORRECCIÓN PARA EL ERROR ModuleNotFoundError ---
-# Se añade el directorio raíz del proyecto a la ruta de módulos de Python.
-# Esto asegura que el reloader pueda encontrar el módulo 'app'.
-import os
-import sys
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-# ----------------------------------------------------
 
 from app.config import settings
 from app.routes.video_routes import router as video_router
 from app.routes.cookies_routes import router as cookies_router
-from app.services.base_extractor import SnapTubeError
 from app.routes.download_routes import router as download_router
+from app.services.base_extractor import SnapTubeError
+from app.services.youtube_cookie_updater import login_youtube_and_save_cookies
+from app.cookies.check_cookies import cookies_are_valid  # Adaptado al formato Netscape
 
-#from app.services import SnapTubeError
-
-# Configure logging
+# ==========================================================
+# LOGGING CONFIG
+# ==========================================================
 logging.basicConfig(
-    #level=logging.DEBUG,  # Cambia a DEBUG para más detalle
-    #format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     level=getattr(logging, settings.LOG_LEVEL),
     format=settings.LOG_FORMAT
 )
-#logger = logging.getLogger("uvicorn.error")
-#logger.setLevel(logging.DEBUG)
 logger = logging.getLogger(__name__)
 
-# Rate limiter
-limiter = Limiter(key_func=get_remote_address)
+# ==========================================================
+# COOKIES MANAGEMENT
+# ==========================================================
+_last_cookie_update_attempt = None
 
+def ensure_valid_cookies(force: bool = False) -> bool:
+    """Verifica y actualiza cookies si es necesario."""
+    global _last_cookie_update_attempt
+
+    # Evita intentos demasiado seguidos (1 min de espera mínimo)
+    if not force and _last_cookie_update_attempt and (datetime.now() - _last_cookie_update_attempt).seconds < 60:
+        logger.warning("⏳ Último intento de actualización de cookies fue hace menos de 1 min. Saltando...")
+        return False
+
+    _last_cookie_update_attempt = datetime.now()
+
+    if force or not cookies_are_valid():
+        logger.warning("⚠️ Cookies inválidas o ausentes. Intentando regenerar...")
+        try:
+            login_youtube_and_save_cookies()
+            return cookies_are_valid()
+        except Exception as e:
+            logger.error(f"💥 Error regenerando cookies: {str(e)}", exc_info=True)
+            return False
+    return True
+
+# ==========================================================
+# APP LIFESPAN
+# ==========================================================
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Application lifespan management"""
-    # Startup
-    logger.info("🚀 SnapTube API starting up...")
-    
-    # Create necessary directories
+    """Startup & Shutdown"""
+    logger.info("🚀 SnapNosh API starting up...")
+
+    # Crear directorios necesarios
     settings.TEMP_DIR.mkdir(exist_ok=True)
     settings.COOKIES_DIR.mkdir(exist_ok=True)
     settings.YOUTUBE_COOKIES_PATH.parent.mkdir(parents=True, exist_ok=True)
-    
-    # Start background cleanup task
+
+    # Verificar cookies al iniciar
+    if not ensure_valid_cookies():
+        logger.error("🚨 No se pudieron generar cookies al iniciar. El API puede fallar en peticiones a YouTube.")
+
+    # Tarea en segundo plano para limpieza
     cleanup_task = asyncio.create_task(periodic_cleanup())
-    
-    logger.info("✅ SnapTube API ready!")
-    
+
+    logger.info("✅ SnapNosh API ready!")
     yield
-    
-    # Shutdown
-    logger.info("🛑 SnapTube API shutting down...")
+
+    logger.info("🛑 SnapNosh API shutting down...")
     cleanup_task.cancel()
     await cleanup_temp_files()
     logger.info("👋 Shutdown complete")
 
-# Create FastAPI app
+# ==========================================================
+# FASTAPI APP
+# ==========================================================
 app = FastAPI(
     title=settings.API_TITLE,
     description=settings.API_DESCRIPTION,
@@ -79,10 +98,11 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# Add rate limiter to app state
+# Rate Limiter Middleware
 app.state.limiter = limiter
+app.add_middleware(SlowAPIMiddleware)
 
-# CORS middleware
+# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.ALLOWED_ORIGINS,
@@ -91,17 +111,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include routers
-app.include_router(video_router) #cookies_routes
-#app.include_router(cookies_router, prefix="/api")
+# Routers
+app.include_router(video_router, prefix="/api/v1", tags=["video"])
 app.include_router(cookies_router, prefix="/api/v1", tags=["cookies"])
-app.include_router(download_router, prefix="/api/v1")
+app.include_router(download_router, prefix="/api/v1", tags=["download"])
 
-
-# Root endpoint
+# ==========================================================
+# ROOT
+# ==========================================================
 @app.get("/", response_class=JSONResponse)
 async def root():
-    """Root endpoint with API information"""
+    """API Status"""
     return {
         "name": settings.API_TITLE,
         "version": settings.API_VERSION,
@@ -109,44 +129,56 @@ async def root():
         "documentation": "/docs" if settings.DEBUG else "Contact administrator",
         "endpoints": {
             "extract": "/api/v1/extract",
-            "download": "/api/v1/download", 
+            "download": "/api/v1/download",
             "stream": "/api/v1/stream",
             "platforms": "/api/v1/platforms"
         }
     }
-    
+
+# ==========================================================
+# COOKIES CHECK
+# ==========================================================
 @app.get("/check-cookies")
 async def check_cookies():
-    path = Path(os.getenv("YOUTUBE_COOKIES_PATH", "app/cookies/cookies.txt"))
+    path = Path(settings.YOUTUBE_COOKIES_PATH)
     return {"exists": path.exists(), "path": str(path.resolve())}
-    
+
 @app.get("/debug/cookies")
 async def debug_cookies():
-    #path = os.getenv("YOUTUBE_COOKIES_PATH", "cookies.txt")
     path = settings.YOUTUBE_COOKIES_PATH
-    if os.path.exists(path):
+    if path.exists():
         with open(path, "r", encoding="utf-8") as f:
-            content = f.read(500)  # lee primeros 500 caracteres
+            content = f.read(500)
         return {"path": str(path), "content_preview": content}
-    else:
-        return {"error": "Archivo no encontrado", "path": str(path)}
+    return {"error": "Archivo no encontrado", "path": str(path)}
 
-# Exception handlers
+# ==========================================================
+# EXCEPTION HANDLERS
+# ==========================================================
 @app.exception_handler(SnapTubeError)
 async def snaptube_exception_handler(request: Request, exc: SnapTubeError):
-    """Handle SnapTube specific errors"""
+    """Handle SnapTube errors"""
+    error_text = str(exc).lower()
+    if any(keyword in error_text for keyword in ["cookies", "signin", "login", "auth"]):
+        logger.warning("🔄 Error de cookies detectado. Intentando actualización automática...")
+        if ensure_valid_cookies(force=True):
+            return JSONResponse(
+                status_code=503,
+                content={"status": "error", "message": "Cookies actualizadas, intente nuevamente."}
+            )
+        else:
+            return JSONResponse(
+                status_code=500,
+                content={"status": "error", "message": "No se pudo actualizar cookies automáticamente."}
+            )
     return JSONResponse(
         status_code=400,
-        content={
-            "status": "error", 
-            "message": str(exc), 
-            "type": "SnapTubeError"
-        }
+        content={"status": "error", "message": str(exc), "type": "SnapTubeError"}
     )
 
 @app.exception_handler(RateLimitExceeded)
 async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
-    """Handle rate limit exceeded errors"""
+    """Rate limit exceeded"""
     return JSONResponse(
         status_code=429,
         content={
@@ -158,11 +190,11 @@ async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
 
 @app.exception_handler(404)
 async def not_found_handler(request: Request, exc):
-    """Handle 404 errors"""
+    """Not found"""
     return JSONResponse(
         status_code=404,
         content={
-            "status": "error", 
+            "status": "error",
             "message": "Endpoint not found",
             "available_endpoints": ["/api/v1/extract", "/api/v1/download", "/api/v1/stream"]
         }
@@ -170,56 +202,48 @@ async def not_found_handler(request: Request, exc):
 
 @app.exception_handler(500)
 async def internal_error_handler(request: Request, exc):
-    """Handle internal server errors"""
+    """Internal server error"""
     logger.error(f"Internal server error: {str(exc)}", exc_info=True)
     return JSONResponse(
         status_code=500,
-        content={
-            "status": "error", 
-            "message": "Internal server error",
-            "type": "InternalError"
-        }
+        content={"status": "error", "message": "Internal server error", "type": "InternalError"}
     )
 
-# Background tasks
+# ==========================================================
+# BACKGROUND TASKS
+# ==========================================================
 async def periodic_cleanup():
-    """Periodic cleanup of temporary files"""
+    """Clean temporary files periodically"""
     while True:
         try:
             await cleanup_temp_files()
-            await asyncio.sleep(1800)  # Every 30 minutes
+            await asyncio.sleep(1800)  # 30 min
         except Exception as e:
             logger.error(f"💥 Periodic cleanup error: {str(e)}")
-            await asyncio.sleep(3600)  # Wait longer on error
+            await asyncio.sleep(3600)
 
 async def cleanup_temp_files():
-    """Clean up old temporary files"""
+    """Remove old temporary files"""
     try:
         current_time = asyncio.get_event_loop().time()
         cleaned = 0
-        
         for filepath in settings.TEMP_DIR.glob("*"):
             if filepath.is_file():
-                # Check file age
                 file_age = current_time - filepath.stat().st_mtime
                 if file_age > settings.CLEANUP_INTERVAL:
                     filepath.unlink()
                     cleaned += 1
-        
         if cleaned > 0:
-            logger.info(f"🗑️ Cleaned up {cleaned} temporary files")
-            
+            logger.info(f"🗑️ Cleaned {cleaned} temporary files")
     except Exception as e:
         logger.error(f"⚠️ Cleanup error: {str(e)}")
 
+# ==========================================================
+# MAIN ENTRY
+# ==========================================================
 if __name__ == "__main__":
-    logger.info("🚀 Iniciando Snaptube-Like YouTube API...")
-    #logger.info(f"📊 Configuración - Proxies: {Config.USE_PROXIES}, Cookies: {Config.USE_BROWSER_COOKIES}")
-    
-    # Puerto para deployment (Railway, Render, etc.)
+    logger.info("🚀 Iniciando SnapTube-Like API...")
     import uvicorn
-    #port = int(os.getenv("PORT", Config.APP_PORT))
-    
     uvicorn.run(
         "app.main:app",
         host=settings.HOST,

@@ -1,40 +1,42 @@
 # ====================================================================
-# docker-compose.yml
+# docker-compose.dev.yml
 # ====================================================================
 version: '3.8'
 
 services:
-  snapnosh-api:
-    build: .
-    container_name: snapnosh-api
+  snapnosh-api-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: snapnosh-api-dev
     ports:
       - "8000:8000"
     environment:
-      - DEBUG=false
-      - LOG_LEVEL=INFO
+      - DEBUG=true
+      - LOG_LEVEL=DEBUG
       - MAX_FILE_SIZE=524288000  # 500MB
       - CLEANUP_INTERVAL=3600    # 1 hour
       - HOST=0.0.0.0
       - PORT=8000
       - YOUTUBE_COOKIES_PATH=/app/cookies/cookies.txt
     volumes:
-      - ./cookies:/app/cookies:rw      # lectura y escritura de cookies
-      - /tmp/snapnosh:/tmp/snapnosh    # espacio temporal para descargas
+      - ./app:/app                # montar código fuente para autoreload
+      - ./cookies:/app/cookies:rw
+      - /tmp/snapnosh:/tmp/snapnosh
     restart: unless-stopped
+    command: >
+      uvicorn app.main:app
+      --host 0.0.0.0
+      --port 8000
+      --reload
+      --reload-dir /app
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
-    command: >
-      gunicorn app.main:app
-      -w 4
-      -k uvicorn.workers.UvicornWorker
-      --bind 0.0.0.0:8000
-      --timeout 120
 
-  # Redis opcional para cache o futuras funciones
   redis:
     image: redis:7-alpine
     container_name: snapnosh-redis

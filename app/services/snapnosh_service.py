@@ -4,6 +4,7 @@ import re
 
 import yt_dlp
 from app.models.video_models import VideoInfo, VideoFormat, SnaptubeVideoInfo, DownloadOption, SearchResult, TrendingVideo
+from app.services.threads_service import get_threads_video_url
 
 class EnhancedSnapNoshConverter:
     @staticmethod
@@ -162,10 +163,21 @@ class EnhancedSnapNoshConverter:
             webpage_url=video_info.video_url,
             has_formats=bool(video_info.formats)
         )
-    
-    
+
     @staticmethod
     async def extract_video(url: str, mobile: bool = False, cookies: Optional[str] = None) -> dict:
+        # Detectar si es Threads
+        if "threads.com" in url or "threads.net" in url:
+            video_url = await get_threads_video_url(url, headless=True)
+            return {
+                "video_url": video_url,
+                "title": "Threads Video",  # Opcional, puedes intentar scrapear título si quieres
+                "platform": "threads",
+                "method": "ThreadsService",
+                "formats": [{"format_id": "best", "ext": "mp4", "url": video_url}]
+            }
+    
+        # Para otras plataformas seguimos con yt-dlp
         ydl_opts = {
             'quiet': True,
             'no_warnings': True,
@@ -173,24 +185,20 @@ class EnhancedSnapNoshConverter:
             'format': 'best',
             'noplaylist': True,
         }
-
-        # Puedes agregar cabeceras personalizadas si 'mobile' es True
+    
         if mobile:
             ydl_opts['http_headers'] = {
                 'User-Agent': 'Mozilla/5.0 (Linux; Android 9; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36'
             }
-
-        # Si hay cookies, agregar a opciones
+    
         if cookies:
-            # ej: guardarlas en un archivo temporal o pasarlas directamente
-            # Aquí simplificamos: asumamos que 'cookies' es el path a un archivo cookies.txt
             ydl_opts['cookiefile'] = cookies
-
+    
         loop = asyncio.get_event_loop()
-
+    
         def run_extract():
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 return ydl.extract_info(url, download=False)
-
+    
         info = await loop.run_in_executor(None, run_extract)
         return info
