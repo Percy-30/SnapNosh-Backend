@@ -81,41 +81,61 @@ class ThreadsService:
                     self.video_urls.append(url)
         page.on("request", handle_request)
 
-    async def get_best_video_url(self, post_url: str) -> str:
+    async def get_best_video_url(self, post_url: str, retries: int = 2) -> str:
         """Devuelve la URL directa del mejor video de un post de Threads"""
         if not self.browser:
             raise RuntimeError("Browser no está configurado")
-        self.video_urls.clear()
 
         normalized_url = self._normalize_url(post_url)
-        context = await self.browser.new_context(
-            viewport={"width": 1920, "height": 1080},
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-        )
-        page = await context.new_page()
-        await self._intercept_requests(page)
 
-        try:
-            logger.info(f"🔗 Navegando a: {normalized_url}")
-            response = await page.goto(normalized_url, wait_until="networkidle", timeout=30000)
-            if not response or response.status >= 400:
-                raise Exception(f"Error HTTP {response.status if response else 'unknown'}")
+        for attempt in range(1, retries + 2):  # reintentos
+            self.video_urls.clear()
+            context = await self.browser.new_context(
+                viewport={"width": 1920, "height": 1080},
+                user_agent=(
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                )
+            )
+            page = await context.new_page()
+            await self._intercept_requests(page)
 
-            # Esperar contenido y hacer scroll
-            await page.wait_for_timeout(3000)
-            await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-            await page.wait_for_timeout(2000)
+            try:
+                logger.info(f"🔗 Navegando a: {normalized_url} (Intento {attempt})")
+                response = await page.goto(normalized_url, wait_until="networkidle", timeout=30000)
+                if not response or response.status >= 400:
+                    logger.warning(f"⚠️ Error HTTP {response.status if response else 'unknown'}")
+                    raise Exception("Error HTTP al cargar la página")
 
-            if not self.video_urls:
-                raise Exception("❌ No se encontró URL de video")
+                # Esperar contenido y hacer scroll
+                await page.wait_for_timeout(3000)
+                await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+                await page.wait_for_timeout(2000)
 
-            best_url = self.video_urls[0]
-            logger.info(f"🎯 Mejor video encontrado: {best_url}")
-            return best_url
+                # 1️⃣ Intentar obtener URL desde intercept requests
+                if self.video_urls:
+                    best_url = self.video_urls[0]
+                    logger.info(f"🎯 Mejor video encontrado por intercept: {best_url}")
+                    return best_url
 
-        finally:
-            await context.close()
+                # 2️⃣ Intentar obtener URL desde el <video> directamente
+                video_element = await page.query_selector("video")
+                if video_element:
+                    src = await video_element.get_attribute("src")
+                    if src:
+                        logger.info(f"🎯 Mejor video encontrado por selector: {src}")
+                        return src
 
+                raise Exception("❌ No se encontró URL de video en esta página")
+
+            except Exception as e:
+                logger.error(f"⚠️ Intento {attempt} fallido: {e}")
+                if attempt == retries + 1:
+                    raise Exception(f"❌ Extraction failed after {retries + 1} attempts: {e}")
+                await page.wait_for_timeout(2000)  # esperar antes del siguiente intento
+
+            finally:
+                await context.close()
 
 # Función helper para FastAPI u otros servicios
 async def extract_threads_video(post_url: str, headless: bool = True) -> str:
