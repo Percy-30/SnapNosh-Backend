@@ -118,7 +118,7 @@ class ThreadsService:
 
 
 # Función helper para FastAPI u otros servicios
-async def get_threads_video_url(post_url: str, headless: bool = True) -> str:
+async def extract_threads_video(post_url: str, headless: bool = True) -> str:
     async with ThreadsService(headless=headless) as service:
         return await service.get_best_video_url(post_url)
 
@@ -129,7 +129,7 @@ async def get_threads_video_url(post_url: str, headless: bool = True) -> str:
 class ThreadsExtractor:
     """Wrapper para SnapTubeService, compatible con SnapTubeService.extract_video"""
     async def extract(self, url: str, **kwargs) -> dict:
-        video_url = await get_threads_video_url(url, headless=kwargs.get("headless", True))
+        video_url = await extract_threads_video(url, headless=kwargs.get("headless", True))
         return {
             "video_url": video_url,
             "title": "Threads Video",
@@ -150,7 +150,7 @@ if __name__ == "__main__":
             print("Uso: python threads_service.py <THREADS_POST_URL>")
             return
         url = sys.argv[1]
-        video_url = await get_threads_video_url(url)
+        video_url = await extract_threads_video(url)
         print(f"\n🎯 Mejor URL de video:\n{video_url}")
 
     asyncio.run(main())

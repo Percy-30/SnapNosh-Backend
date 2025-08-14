@@ -4,7 +4,8 @@ import re
 
 import yt_dlp
 from app.models.video_models import VideoInfo, VideoFormat, SnaptubeVideoInfo, DownloadOption, SearchResult, TrendingVideo
-from app.services.threads_service import get_threads_video_url
+#from app.services.threads_service import get_threads_video_url
+from app.services.threads_service import extract_threads_video
 
 class EnhancedSnapNoshConverter:
     @staticmethod
@@ -168,7 +169,7 @@ class EnhancedSnapNoshConverter:
     async def extract_video(url: str, mobile: bool = False, cookies: Optional[str] = None) -> dict:
         # Detectar si es Threads
         if "threads.com" in url or "threads.net" in url:
-            video_url = await get_threads_video_url(url, headless=True)
+            video_url = await extract_threads_video(url, headless=True)
             return {
                 "video_url": video_url,
                 "title": "Threads Video",  # Opcional, puedes intentar scrapear título si quieres

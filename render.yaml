@@ -1,23 +1,22 @@
 services:
   - type: web
-    name: youtube-cookies-api
-    runtime: python
-    buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    name: snapnosh-backend
+    env: docker
+    dockerfilePath: Dockerfile
+    autoDeploy: true
+    branch: main            # Cambia al branch que uses en Git
+    plan: free               # Puedes cambiar a starter o profesional si quieres más recursos
     envVars:
-      - key: PYTHON_VERSION
-        value: "3.11"         # Actualizado a 3.11, coincidiendo con Dockerfile
-      - key: REQUEST_TIMEOUT
-        value: "30"           # Usar valor coherente con settings.py
-      - key: YOUTUBE_COOKIES_PATH
-        value: "/app/cookies/cookies.txt"  # Ruta consistente con Dockerfile y app config
+      - key: PORT
+        value: "8000"        # Render sobrescribirá con el puerto real en producción
       - key: HOST
         value: "0.0.0.0"
-      - key: PORT
-        value: "8000"
-      - key: USE_PROXIES
-        value: "false"
+      - key: YOUTUBE_COOKIES_PATH
+        value: "/app/cookies/cookies.txt"
+    healthCheckPath: "/api/v1/health"
+    buildCommand: ""         # Usamos el Dockerfile, no es necesario comando adicional
+    startCommand: ""         # El CMD del Dockerfile se usará automáticamente
 
-volumes:
-  - ./cookies:/app/cookies:ro        # Monta carpeta local cookies en contenedor
-  - /tmp/snaptube:/tmp/snaptube      # Monta temp local en temp del contenedor
+#volumes:
+#  - ./cookies:/app/cookies:ro        # Monta carpeta local cookies en contenedor
+#  - /tmp/snaptube:/tmp/snaptube      # Monta temp local en temp del contenedor
