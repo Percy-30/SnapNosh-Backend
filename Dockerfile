@@ -1,11 +1,5 @@
-# =========================================================
-# Dockerfile para SnapNosh Backend (FastAPI + Playwright)
-# Producción optimizada para Render
-# =========================================================
-
 FROM python:3.11-slim
 
-# Establecer directorio de trabajo
 WORKDIR /app
 
 # Instalar dependencias del sistema necesarias para Playwright, ffmpeg y fuentes
@@ -29,10 +23,11 @@ RUN apt-get update && apt-get install -y \
     libasound2 \
     libatspi2.0-0 \
     libwayland-client0 \
+    ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Copiar requirements.txt primero para aprovechar cache
-COPY requirements.txt ./
+# Copiar requirements antes para cache
+COPY requirements.txt ./ 
 
 # Instalar dependencias Python
 RUN pip install --no-cache-dir -r requirements.txt
@@ -55,9 +50,9 @@ ENV YOUTUBE_COOKIES_PATH=/app/cookies/cookies.txt
 # Exponer puerto
 EXPOSE 8000
 
-# Healthcheck para Render
+# Healthcheck para Render o Docker
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8000/api/v1/health || exit 1
 
-# Comando por defecto para producción (Gunicorn + Uvicorn workers)
-CMD ["gunicorn", "app.main:app", "-w", "4", "-k", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8000", "--timeout", "120"]
+# Comando para producción
+CMD ["gunicorn", "app.main:app", "-w", "4", "-k", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8000"]
