@@ -29,3 +29,4 @@ redis
 # Development (optional)
 python-dotenv
 boto3
+browser-cookie3
