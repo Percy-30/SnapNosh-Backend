@@ -4,8 +4,9 @@
 version: '3.8'
 
 services:
-  snaptube-api:
+  snapnosh-api:
     build: .
+    container_name: snapnosh-api
     ports:
       - "8000:8000"
     environment:
@@ -13,9 +14,12 @@ services:
       - LOG_LEVEL=INFO
       - MAX_FILE_SIZE=524288000  # 500MB
       - CLEANUP_INTERVAL=3600    # 1 hour
+      - HOST=0.0.0.0
+      - PORT=8000
+      - YOUTUBE_COOKIES_PATH=/app/cookies/cookies.txt
     volumes:
-      - ./cookies:/app/cookies:ro
-      - /tmp/snaptube:/tmp/snaptube
+      - ./cookies:/app/cookies:rw      # lectura y escritura de cookies
+      - /tmp/snapnosh:/tmp/snapnosh    # espacio temporal para descargas
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
@@ -23,10 +27,17 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+    command: >
+      gunicorn app.main:app
+      -w 4
+      -k uvicorn.workers.UvicornWorker
+      --bind 0.0.0.0:8000
+      --timeout 120
 
-  # Optional: Redis for caching (future feature)
+  # Redis opcional para cache o futuras funciones
   redis:
     image: redis:7-alpine
+    container_name: snapnosh-redis
     ports:
       - "6379:6379"
     restart: unless-stopped

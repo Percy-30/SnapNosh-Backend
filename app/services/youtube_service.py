@@ -37,7 +37,8 @@ class YouTubeExtractor(BaseExtractor):
 
     def _ensure_cookies_file(self) -> str:
         """Asegura que haya cookies válidas o intenta exportarlas."""
-        if self._cookies_file and CookieManager.validate_cookies_file(Path(self._cookies_file)):
+        if self._cookies_file and CookieManager.cookies_are_valid():
+        #if self._cookies_file and CookieManager.cookies_are_valid(Path(self._cookies_file)):
             return self._cookies_file
 
         exported = CookieManager.export_browser_cookies("chrome") or CookieManager.export_browser_cookies("edge")

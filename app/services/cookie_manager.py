@@ -1,9 +1,12 @@
 import os
 from pathlib import Path
 import logging
+import tempfile
 
-COOKIES_FILE = Path("app/cookies/cookies.txt")
+import browser_cookie3
+
 logger = logging.getLogger(__name__)
+COOKIES_FILE = Path("app/cookies/cookies.txt")
 
 class CookieManager:
     """Gestión centralizada de cookies de YouTube en formato Netscape"""
@@ -24,3 +27,23 @@ class CookieManager:
         if CookieManager.cookies_are_valid():
             return COOKIES_FILE.read_text(encoding="utf-8")
         return ""
+    
+    @staticmethod
+    def export_browser_cookies(browser: str = "chrome") -> str | None:
+        """Intenta exportar cookies del navegador a un archivo temporal."""
+        try:
+            if browser.lower() == "chrome":
+                cj = browser_cookie3.chrome()
+            elif browser.lower() == "edge":
+                cj = browser_cookie3.edge()
+            else:
+                return None
+
+            fd, path = tempfile.mkstemp(suffix=".txt")
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                for cookie in cj:
+                    f.write(f"{cookie.domain}\tTRUE\t{cookie.path}\tFALSE\t0\t{cookie.name}\t{cookie.value}\n")
+            return path
+        except Exception as e:
+            logger.warning(f"No se pudieron exportar cookies de {browser}: {e}")
+            return None
