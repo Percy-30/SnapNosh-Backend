@@ -134,6 +134,7 @@ async def root():
             "extract": "/api/v1/extract",
             "download": "/api/v1/download",
             "stream": "/api/v1/stream",
+            "audio": "/api/v1/audio",
             "platforms": "/api/v1/platforms"
         }
     }
