@@ -115,7 +115,8 @@ app.add_middleware(
 #app.include_router(video_router, prefix="/api/v1", tags=["video"])
 #app.include_router(cookies_router, prefix="/api/v1", tags=["cookies"])
 #app.include_router(download_router, prefix="/api/v1", tags=["download"])
-app.include_router(video_router) #cookies_routes
+#app.include_router(video_router) #cookies_routes
+app.include_router(video_router, prefix="/api/v1")
 app.include_router(cookies_router, prefix="/api") 
 app.include_router(download_router, prefix="/api/v1")
 

@@ -2,6 +2,7 @@ import logging
 import asyncio
 import os
 import random
+from urllib.parse import unquote
 import uuid
 import re
 from pathlib import Path
@@ -328,6 +329,10 @@ async def get_audio_url(
     url: str = Query(..., description="URL del video"),
     cookies: str = Header(None, description="Cookies YouTube, opcional")
 ):
+       # Decodifica y limpia la URL
+    decoded_url = unquote(url)
+    clean_url = decoded_url.split('?')[0]  # Elimina parámetros como ?is_from_webapp=1
+        
     platform = validator.detect_platform(url)
     
     try:
