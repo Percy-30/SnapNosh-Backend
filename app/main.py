@@ -16,8 +16,8 @@ from slowapi.middleware import SlowAPIMiddleware
 from app.limits import limiter
 
 from app.config import settings
-from app.routes.audio_routes import router as audio_router
 from app.routes.video_routes import router as video_router
+from app.routes.audio_routes import router as audio_router
 from app.routes.cookies_routes import router as cookies_router
 from app.routes.download_routes import router as download_router
 from app.services.base_extractor import SnapTubeError
@@ -117,7 +117,7 @@ app.add_middleware(
 #app.include_router(cookies_router, prefix="/api/v1", tags=["cookies"])
 #app.include_router(download_router, prefix="/api/v1", tags=["download"])
 #app.include_router(video_router) #cookies_routes
-app.include_router(video_router, prefix="/api/v1")
+app.include_router(video_router)
 app.include_router(cookies_router, prefix="/api") 
 app.include_router(download_router, prefix="/api/v1")
 app.include_router(audio_router, prefix="/api/v1")
