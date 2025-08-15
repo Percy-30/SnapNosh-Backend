@@ -277,3 +277,43 @@ class FacebookExtractor(BaseExtractor):
         finally:
             if temp_cookie_path and os.path.exists(temp_cookie_path):
                 os.unlink(temp_cookie_path)
+                
+    async def extract_audio_url_with_fallback(self, url: str, cookies: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Extrae audio de Facebook con fallback seguro.
+        Siempre devuelve un dict plano con:
+        {
+            "audio_url": str,
+            "title": str,
+            "thumbnail": str,
+            "duration": int
+        }
+        """
+        try:
+            # Intentar extraer solo audio
+            audio_url = await self.extract_audio_url(url, cookies=cookies)
+            
+            # Extraer info completa para title, thumbnail y duration
+            info = await self.extract(url, cookies=cookies)
+            
+            result = {
+                "audio_url": audio_url,
+                "title": info.get("title") or "Facebook Video",
+                "thumbnail": info.get("thumbnail") or "",
+                "duration": info.get("duration") or 0
+            }
+
+            logger.info(f"🎵 Facebook audio extraction result: {result}")
+            return result
+
+        except SnapTubeError as e:
+            # Fallback absoluto: usar video como fuente de audio
+            info = await self.extract(url, cookies=cookies)
+            result = {
+                "audio_url": info.get("video_url"),
+                "title": info.get("title") or "Facebook Video",
+                "thumbnail": info.get("thumbnail") or "",
+                "duration": info.get("duration") or 0
+            }
+            logger.warning(f"⚠️ Facebook audio fallback used: {result}")
+            return result

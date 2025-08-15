@@ -5,6 +5,7 @@ import asyncio
 import logging
 import re
 import json
+import aiohttp
 import requests
 import yt_dlp
 from bs4 import BeautifulSoup
@@ -274,45 +275,104 @@ class TikTokExtractor(BaseExtractor):
             "method": method
         }
         
-    def extract_audio_url(self, url: str, cookies: Optional[str] = None) -> str:
-        ydl_opts = {
-            "format": "bestaudio/best",
-            "quiet": True,
-            "no_warnings": True,
-            "cookiefile": None,
-            "http_headers": self.get_platform_headers(),
-        }
-        if cookies:
-            import tempfile
-            import os
-            fd, temp_cookie_path = tempfile.mkstemp(suffix=".txt")
-            with os.fdopen(fd, "w", encoding="utf-8") as f:
-                f.write(cookies)
-            ydl_opts["cookiefile"] = temp_cookie_path
-
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=False)
-
-        audio_formats = [
-            f for f in info.get("formats", [])
-            if f.get("acodec") != "none" and f.get("vcodec") == "none" and f.get("url")
-        ]
-        if audio_formats:
-            audio_formats.sort(key=lambda f: f.get("abr") or 0, reverse=True)
-            audio_url = audio_formats[0]["url"]
-        elif info.get("url") and info.get("acodec") != "none" and info.get("vcodec") == "none":
-            audio_url = info["url"]
-        else:
-            raise SnapTubeError("No se encontró URL directa de audio en TikTok")
-
-        if cookies:
-            try:
-                os.unlink(temp_cookie_path)
-            except Exception:
-                pass
-
-        return audio_url
+    async def extract_audio_url(self, url: str) -> Dict[str, Any]:
+        """
+        Extrae la URL de audio de TikTok y devuelve metadata completa
+        incluyendo miniatura.
+        """
+        try:
+            timeout = aiohttp.ClientTimeout(total=60)
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) '
+                              'AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 '
+                              'Mobile/15E148 Safari/604.1'
+            }
     
+            async with aiohttp.ClientSession(timeout=timeout, headers=headers) as session:
+                async with session.get(url) as response:
+                    html = await response.text()
+    
+            # Buscar JSON con info de video
+            json_pattern = r'<script[^>]*>window\.__UNIVERSAL_DATA_FOR_REHYDRATION__\s*=\s*({.*?})</script>'
+            match = re.search(json_pattern, html)
+            audio_url = None
+            thumbnail = None
+            title = None
+            duration = 0
+    
+            if match:
+                try:
+                    data = json.loads(match.group(1))
+                    video_detail = data.get('__DEFAULT_SCOPE__', {}).get(
+                        'webapp.video-detail', {}).get('itemInfo', {}).get('itemStruct', {})
+                    if video_detail:
+                        music = video_detail.get('music', {})
+                        audio_url = music.get('playUrl', '')
+                        title = video_detail.get('desc', 'TikTok Video')
+                        duration = video_detail.get('video', {}).get('duration', 0)
+                        thumbnail = video_detail.get('video', {}).get('cover', '')
+                except json.JSONDecodeError:
+                    pass
+                
+            # Fallback regex si no hay JSON
+            if not audio_url:
+                patterns = [
+                    r'"playAddr":"([^"]*\.mp3[^"]*)"',
+                    r'"downloadAddr":"([^"]*\.mp3[^"]*)"',
+                    r'playUrl":"([^"]*)"'
+                ]
+                for pattern in patterns:
+                    match = re.search(pattern, html)
+                    if match:
+                        audio_url = match.group(1)
+                        break
+                    
+            if not audio_url:
+                raise SnapTubeError("Audio URL not found for TikTok video")
+    
+            # Decodificar Unicode
+            audio_url = audio_url.encode('utf-8').decode('unicode_escape')
+    
+            return {
+                "status": "success",
+                "audio_url": audio_url,
+                "thumbnail": thumbnail,
+                "title": title,
+                "duration": duration
+            }
+    
+        except Exception as e:
+            logger.error(f"Error extracting TikTok audio: {str(e)}", exc_info=True)
+            raise SnapTubeError(f"Error extracting TikTok audio: {str(e)}")
+    
+    async def extract_audio_url_with_fallback(self, url: str) -> Dict[str, Any]:
+        try:
+            result = await self.extract_audio_url(url)
+            
+            # Si algo falta, usar extract() para completar
+            if not result.get("title") or not result.get("thumbnail") or not result.get("duration"):
+                video_info = await self.extract(url)
+                result["title"] = result.get("title") or video_info.get("title")
+                result["thumbnail"] = result.get("thumbnail") or video_info.get("thumbnail")
+                result["duration"] = result.get("duration") or video_info.get("duration")
+            
+            return {
+                "audio_url": result.get("audio_url"),
+                "title": result.get("title"),
+                "thumbnail": result.get("thumbnail"),
+                "duration": result.get("duration")
+            }
+        except SnapTubeError:
+            video_info = await self.extract(url)
+            return {
+                "audio_url": video_info.get("video_url"),
+                "title": video_info.get("title"),
+                "thumbnail": video_info.get("thumbnail"),
+                "duration": video_info.get("duration")
+            }
+
+
+
     
     def _get_quality_info(self, info: Dict) -> Dict:
         """Extract quality information"""

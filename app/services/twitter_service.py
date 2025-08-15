@@ -208,3 +208,43 @@ class TwitterExtractor(BaseExtractor):
         except Exception as e:
             logger.error(f"Error en extract_audio_url(): {str(e)}", exc_info=True)
             raise SnapTubeError(f"Error extrayendo audio: {str(e)}")
+        
+    async def extract_audio_url_with_fallback(self, url: str, cookies: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Extrae el audio de Twitter de forma segura.
+        Siempre devuelve un dict plano:
+        {
+            "audio_url": str,
+            "title": str,
+            "thumbnail": str,
+            "duration": int
+        }
+        """
+        try:
+            # Intentar obtener audio puro
+            audio_url = await self.extract_audio_url(url, cookies=cookies)
+            
+            # Extraer info completa para llenar title/thumbnail/duration
+            info = await self.extract(url)
+            
+            result = {
+                "audio_url": audio_url,
+                "title": info.get("title") or "Twitter Video",
+                "thumbnail": info.get("thumbnail") or "",
+                "duration": info.get("duration") or 0
+            }
+
+            logger.info(f"🎵 Twitter audio extraction result: {result}")
+            return result
+
+        except SnapTubeError as e:
+            # Fallback absoluto: usar video como audio
+            info = await self.extract(url)
+            result = {
+                "audio_url": info.get("video_url"),
+                "title": info.get("title") or "Twitter Video",
+                "thumbnail": info.get("thumbnail") or "",
+                "duration": info.get("duration") or 0
+            }
+            logger.warning(f"⚠️ Twitter audio fallback used: {result}")
+            return result

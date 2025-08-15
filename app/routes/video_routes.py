@@ -41,13 +41,13 @@ COOKIES_FILE = Path("app/cookies/cookies.txt")
 
 yt_extractor = YouTubeExtractor(cookies_file=str(COOKIES_FILE) if COOKIES_FILE.exists() else None)
 fb_extractor = FacebookExtractor()
-tt_audio_downloader = TikTokAPIDownloader()
+#tt_audio_downloader = TikTokAPIDownloader()
 tw_extractor = TwitterExtractor()
 istg_extractor = InstagramExtractor()
 trds_extractor = ThreadsExtractor()
 #trds_extractor = ThreadsExtractor(headless=True)  # Configuración mejorada para Threads
 downloader = GenericDownloader()
-#tt_extractor = TikTokExtractor()
+tk_extractor = TikTokExtractor()
 
 validator = URLValidator()
 
@@ -330,13 +330,16 @@ async def get_audio_url(
     platform = validator.detect_platform(url)
     try:
         if platform == "youtube":
-            audio_url = await yt_extractor.extract_audio_url(url, cookies)
+            audio_url = await yt_extractor.extract_audio_url(url)  # solo 1 argumento: url
+            #audio_url = await yt_extractor.extract_audio_url(url, cookies)
         elif platform == "facebook":
-            audio_url = await fb_extractor.extract_audio_url(url)
+            audio_url = await fb_extractor.extract_audio_url_with_fallback(url)
         elif platform == "twitter":
-            audio_url = await tw_extractor.extract_audio_url(url)
+            audio_url = await tw_extractor.extract_audio_url_with_fallback(url)
         elif platform == "instagram":
-            audio_url = await istg_extractor.extract_audio_url(url)
+            audio_url = await istg_extractor.extract_audio_url_with_fallback(url)
+        elif platform == "tiktok":
+            audio_url = await tk_extractor.extract_audio_url_with_fallback(url)
         else:
             raise HTTPException(status_code=400, detail="Plataforma no soportada")
         return {"status": "success", "audio_url": audio_url}

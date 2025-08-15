@@ -218,31 +218,71 @@ class YouTubeExtractor(BaseExtractor):
             },
         }
 
-    def extract_audio_url(self, url: str, cookies: str = None) -> str:
+    async def extract_audio_url(self, url: str) -> Dict[str, Any]:
+        """
+        Extrae la URL de audio de YouTube usando yt-dlp.
+
+        Args:
+            url: URL del video de YouTube
+
+        Returns:
+            Dict con URL de audio
+        """
         ydl_opts = {
-            "format": "bestaudio/best",
             "quiet": True,
             "no_warnings": True,
-            "cookiefile": None,
-            "http_headers": self.get_platform_headers(),
+            "format": "bestaudio/best",  # Mejor audio disponible
+            "extract_flat": False,
+            "force_generic_extractor": False,
+            "noplaylist": True,
         }
 
-        if cookies:
-            cookies_path = self._save_temp_cookies(cookies)
-            ydl_opts["cookiefile"] = cookies_path
+        try:
+            info = await asyncio.to_thread(
+                lambda: yt_dlp.YoutubeDL(ydl_opts).extract_info(url, download=False)
+            )
 
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=False)
+            # Filtrar formatos de audio
+            audio_formats = [f for f in info.get("formats", []) if f.get("acodec") != "none"]
+            if not audio_formats:
+                raise Exception("No se encontró URL de audio")
 
-        audio_formats = [
-            f for f in info.get("formats", [])
-            if f.get("acodec") != "none" and f.get("vcodec") == "none" and f.get("url")
-        ]
-        if audio_formats:
+            # Ordenar por bitrate y devolver el mejor
             audio_formats.sort(key=lambda f: f.get("abr") or 0, reverse=True)
-            return audio_formats[0]["url"]
+            best_audio = audio_formats[0]
 
-        if info.get("url") and info.get("acodec") != "none" and info.get("vcodec") == "none":
-            return info["url"]
+            return {
+                "status": "success",
+                "audio_url": best_audio["url"],
+                "metadata": {
+                    "title": info.get("title"),
+                    "duration": info.get("duration"),
+                    "uploader": info.get("uploader"),
+                    "thumbnail": info.get("thumbnail"),
+                    "bitrate": best_audio.get("abr"),
+                    "codec": best_audio.get("acodec"),
+                    "ext": best_audio.get("ext"),
+                }
+            }
 
-        raise Exception("No se encontró URL directa de audio")
+        except Exception as e:
+            logger.error(f"Error extrayendo audio: {e}", exc_info=True)
+            raise
+
+# ===========================
+# Prueba local
+# ===========================
+if __name__ == "__main__":
+    import sys
+
+    async def main():
+        url = sys.argv[1] if len(sys.argv) > 1 else None
+        if not url:
+            print("❌ Proporciona URL de YouTube")
+            return
+
+        extractor = YouTubeExtractor()
+        audio_info = await extractor.extract_audio_url(url)
+        print(f"🎵 Audio URL: {audio_info['audio_url']}")
+
+    asyncio.run(main())
