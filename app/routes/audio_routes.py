@@ -5,7 +5,6 @@ import logging
 from pathlib import Path
 from fastapi import APIRouter, HTTPException, Query
 from app.utils import validators
-from app.services.generic_downloader import GenericDownloader
 from app.services.tiktok_service import TikTokExtractor
 from app.services.facebook_service import FacebookExtractor
 from app.services.twitter_service import TwitterExtractor
@@ -16,23 +15,21 @@ from app.services.base_extractor import SnapTubeError
 import traceback
 
 # Initialize APIRouter
-logger = logging.getLogger(__name__)
 router = APIRouter()
-
+logger = logging.getLogger(__name__)
 
 # Define the path to the cookies file
 COOKIES_FILE = Path("app/cookies/cookies.txt")
 
-# Initialize extractors and downloader
+# Initialize extractors
 yt_extractor = YouTubeExtractor(cookies_file=str(COOKIES_FILE) if COOKIES_FILE.exists() else None)
 fb_extractor = FacebookExtractor()
 tw_extractor = TwitterExtractor()
 istg_extractor = InstagramExtractor()
 trds_extractor = ThreadsExtractor()
-downloader = GenericDownloader()
 tk_extractor = TikTokExtractor()
 
-# Initialize URL validator and logger
+# Initialize URL validator
 validator = validators.URLValidator()
 
 
@@ -46,7 +43,7 @@ async def get_audio_url(
     try:
         # Detect the platform from the URL
         platform = validator.detect_platform(url)
-        print(f"🔍 Plataforma detectada: {platform}")
+        logger.info(f"🔍 Plataforma detectada: {platform}")
 
         # Based on the detected platform, call the appropriate extractor
         if platform == "youtube":
@@ -74,6 +71,6 @@ async def get_audio_url(
         
     except Exception as e:
         # Catch any other unexpected errors and provide a generic message
-        print("❌ Error extrayendo audio:", e)
-        traceback.print_exc()
+        logger.error(f"❌ Error extrayendo audio: {str(e)}", exc_info=True)
         raise HTTPException(status_code=400, detail="Ocurrió un error inesperado al procesar la solicitud.")
+

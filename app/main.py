@@ -121,6 +121,7 @@ app.add_middleware(
 app.include_router(video_router)
 app.include_router(cookies_router, prefix="/api") 
 app.include_router(download_router, prefix="/api/v1")
+app.include_router(audio_router)
 app.include_router(audio_router, prefix="/api/v1")
 # ==========================================================
 # ROOT
