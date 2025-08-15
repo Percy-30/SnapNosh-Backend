@@ -325,57 +325,38 @@ async def get_video_formats(
 
 @router.get("/audio")
 async def get_audio_url(
-    request: Request,
-    background_tasks: BackgroundTasks,
-    url: str = Query(..., description="Video URL"),
-    cookies: Optional[str] = Header(None, description="Cookies opcionales para YouTube")
+    url: str = Query(..., description="URL del video"),
+    cookies: str = Header(None, description="Cookies YouTube, opcional")
 ):
     platform = validator.detect_platform(url)
+    
     try:
         if platform == "youtube":
             audio_url = await yt_extractor.extract_audio_url(url)  # solo 1 argumento: url
-            #audio_url = await yt_extractor.extract_audio_url(url, cookies)
+            # audio_url = await yt_extractor.extract_audio_url(url, cookies)  # versión alternativa con cookies
+            
         elif platform == "facebook":
             audio_url = await fb_extractor.extract_audio_url_with_fallback(url)
+            
         elif platform == "twitter":
             audio_url = await tw_extractor.extract_audio_url_with_fallback(url)
+            
         elif platform == "instagram":
             audio_url = await istg_extractor.extract_audio_url_with_fallback(url)
+            
         elif platform == "tiktok":
             audio_url = await tk_extractor.extract_audio_url_with_fallback(url)
+            
         else:
             raise HTTPException(status_code=400, detail="Plataforma no soportada")
-        #return {"status": "success", "audio_url": audio_url}
-    #except Exception as e:
-    #    raise HTTPException(status_code=400, detail=str(e))
-    
-    
-        # Descarga con yt-dlp o requests
-        filename = f"{platform}_{uuid.uuid4()}.mp3"
-        filepath = settings.TEMP_DIR / filename
+
+        return {
+            "status": "success",
+            "audio_url": audio_url
+        }
         
-        # Descarga del audio usando requests
-        import requests
-        with requests.get(audio_url, stream=True) as r:
-            r.raise_for_status()
-            with open(filepath, "wb") as f:
-                for chunk in r.iter_content(chunk_size=8192):
-                    if chunk:
-                        f.write(chunk)
-        
-        # Programa limpieza
-        background_tasks.add_task(cleanup_file, str(filepath))
-        
-        return FileResponse(
-            path=str(filepath),
-            filename=filename,
-            media_type="audio/mpeg",
-            headers={"Content-Disposition": f"attachment; filename={filename}"}
-        )
-    
     except Exception as e:
-        logger.error(f"Audio download error: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.post("/tiktok/audio/download")
