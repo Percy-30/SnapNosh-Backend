@@ -16,6 +16,7 @@ from slowapi.middleware import SlowAPIMiddleware
 from app.limits import limiter
 
 from app.config import settings
+from app.routes.audio_routes import router as audio_router
 from app.routes.video_routes import router as video_router
 from app.routes.cookies_routes import router as cookies_router
 from app.routes.download_routes import router as download_router
@@ -119,7 +120,7 @@ app.add_middleware(
 app.include_router(video_router, prefix="/api/v1")
 app.include_router(cookies_router, prefix="/api") 
 app.include_router(download_router, prefix="/api/v1")
-
+app.include_router(audio_router, prefix="/api/v1")
 # ==========================================================
 # ROOT
 # ==========================================================
