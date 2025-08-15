@@ -17,6 +17,7 @@ from app.limits import limiter
 
 from app.config import settings
 from app.routes.video_routes import router as video_router
+#from app.routes import audio_routes
 from app.routes.audio_routes import router as audio_router
 from app.routes.cookies_routes import router as cookies_router
 from app.routes.download_routes import router as download_router
@@ -202,7 +203,7 @@ async def not_found_handler(request: Request, exc):
         content={
             "status": "error",
             "message": "Endpoint not found",
-            "available_endpoints": ["/api/v1/extract", "/api/v1/download", "/api/v1/stream"]
+            "available_endpoints": ["/api/v1/extract", "/api/v1/download", "/api/v1/stream", "/api/v1/audio"]
         }
     )
 

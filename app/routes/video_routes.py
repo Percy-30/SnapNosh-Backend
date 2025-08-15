@@ -23,7 +23,6 @@ from app.services.facebook_service import FacebookExtractor
 from app.services.twitter_service import TwitterExtractor
 from app.services.instagram_service import InstagramExtractor
 from app.services.threads_service import ThreadsExtractor
-
 from app.services.youtube_service import YouTubeExtractor
 from app.services.base_extractor import SnapTubeError
 from app.utils.validators import URLValidator
@@ -322,38 +321,6 @@ async def get_video_formats(
     except Exception as e:
         logger.error(f"💥 Format extraction error: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to get formats")
-
-
-@router.get("/audio")
-async def get_audio_url(
-    url: str = Query(..., description="URL del video"),
-    cookies: str = Header(None, description="Cookies YouTube, opcional")
-):
-    """
-    Extrae la URL de audio de diferentes plataformas.
-    """
-    platform = validator.detect_platform(url)
-    try:
-        if platform == "youtube":
-            # Si quieres usar cookies, descomenta la siguiente línea:
-            # audio_url = await yt_extractor.extract_audio_url(url, cookies)
-            audio_url = await yt_extractor.extract_audio_url(url)
-        elif platform == "facebook":
-            audio_url = await fb_extractor.extract_audio_url_with_fallback(url)
-        elif platform == "twitter":
-            audio_url = await tw_extractor.extract_audio_url_with_fallback(url)
-        elif platform == "instagram":
-            audio_url = await istg_extractor.extract_audio_url_with_fallback(url)
-        elif platform == "tiktok":
-            audio_url = await tk_extractor.extract_audio_url_with_fallback(url)
-        else:
-            raise HTTPException(status_code=400, detail="Plataforma no soportada")
-        
-        return {"status": "success", "audio_url": audio_url}
-    
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
 
 @router.post("/tiktok/audio/download")
 @limiter.limit(settings.RATE_LIMIT_DOWNLOAD)
